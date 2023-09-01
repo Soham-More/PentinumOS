@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "C/C++: i686-elf-gcc build and debug active file",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/kernel.elf",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Run script",
+                    "text": "source ${workspaceFolder}/.vscode/.gdb-script.gdb",
+                    "ignoreFailures": false
+                }
+            ],
+            "miDebuggerPath": "gdb"
+        }
+    ],
+    "version": "2.0.0"
+}

@@ -1,0 +1,4 @@
+toolchain/
+build/
+/log.txt
+/.gitignore
