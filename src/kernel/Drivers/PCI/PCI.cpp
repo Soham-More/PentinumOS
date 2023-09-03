@@ -42,7 +42,7 @@ namespace PCI
         uint32_t loffset = register_offset & 0xFC;
 
         // (1 << 31): enable bit
-        uint32_t configAddress = (1 << 31) | (lbus << 16) | ((ldevice & 0xF) << 11) | (lfunc << 8) | (loffset);
+        uint32_t configAddress = (1 << 31) | (lbus << 16) | (ldevice << 11) | (lfunc << 8) | (loffset);
 
         // send address
         x86_outl(CONFIG_ADDRESS, configAddress);

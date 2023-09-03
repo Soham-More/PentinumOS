@@ -9,6 +9,7 @@
 #include <i686/PIC.h>
 #include <Drivers/PIT.h>
 #include <std/memory.h>
+#include <Drivers/PCI/PCI.hpp>
 #include <Drivers/Keyboard/PS2.hpp>
 #include <Drivers/Keyboard/PS2Keyboard.hpp>
 
@@ -66,14 +67,7 @@ _export void start(KernelInfo kernelInfo)
 
 	PS2::flush_keyboard();
 
-	printf("Console Mode\n>");
-
-	char c = 0;
-
-	while(c != '\n')
-	{
-		c = getchar();
-	}
+	PCI::enumeratePCIBus();
 
 	for (;;);
 }
