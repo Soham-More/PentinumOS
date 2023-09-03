@@ -1,3 +1,8 @@
 #!/bin/sh
 
-qemu-system-i386 -debugcon stdio -hda build/image.img
+#-hda build/image.img \
+
+qemu-system-i386 -debugcon stdio \
+                        -drive id=disk,file=build/image.img,if=none \
+                        -device ahci,id=ahci \
+                        -device ide-hd,drive=disk,bus=ahci.0

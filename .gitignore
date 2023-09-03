@@ -2,3 +2,4 @@ toolchain/
 build/
 /log.txt
 /.gitignore
+info/

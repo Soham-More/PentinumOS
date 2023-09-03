@@ -40,16 +40,6 @@ namespace PCI
         uint16_t vendorID;
         uint16_t deviceID;
         uint8_t  revisionID;
-    };    
-
-    struct DeviceInfo
-    {
-        uint8_t bus;
-        uint8_t device_no;
-
-        uint16_t vendorID;
-        uint16_t deviceID;
-        uint8_t  revisionID;
 
         uint8_t classCode;
         uint8_t subClass;
@@ -57,6 +47,18 @@ namespace PCI
         uint8_t progIF;
 
         uint8_t headerType;
+
+        bool isValid();
+    };
+
+    struct DeviceInfo
+    {
+        uint8_t bus;
+        uint8_t device_no;
+
+        bool isMultiFunction;
+
+        FunctionInfo functions[8];
 
         bool isValid();
     };
@@ -95,5 +97,6 @@ namespace PCI
 
     void enumeratePCIBus();
 
+    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
     DeviceInfo getDevice(uint8_t bus, uint8_t device);
 }

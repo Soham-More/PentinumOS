@@ -7,26 +7,10 @@ namespace PCI
 {
     const uint16_t CONFIG_ADDRESS = 0xCF8;
     const uint16_t CONFIG_DATA    = 0xCFC;
-/*
-    struct Device
-    {
-        uint16_t vendorID;
-        uint16_t deviceID;
-        uint16_t command;
-        uint16_t status;
-        uint8_t  revisionID;
-        uint8_t  progIF;
-        uint8_t  subClass;
-        uint8_t  classCode;
-        uint8_t  cacheLineSize;
-        uint8_t  latencyTimer;
-        uint8_t  headerType;
-        uint8_t  BIST;
-    } _packed;
-*/
+
     bool DeviceInfo::isValid()
     {
-        return vendorID != 0xFFFF;
+        return functions[0].vendorID != 0xFFFF;
     }
 
     uint32_t configReadRegister(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t _register)
@@ -70,6 +54,27 @@ namespace PCI
         return (dword >> (dword_offset * 8)) & 0xFF;
     }
 
+    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function)
+    {
+        FunctionInfo finfo;
+
+        finfo.vendorID = configReadWord(bus, device, function, 0x00);
+
+        if(finfo.vendorID != 0xFFFF)
+        {
+            finfo.deviceID = configReadWord(bus, device, function, 0x01);
+
+            finfo.revisionID = configReadByte(bus, device, function, 0x08);
+            finfo.progIF     = configReadByte(bus, device, function, 0x09);
+            finfo.subClass   = configReadByte(bus, device, function, 0x0A);
+            finfo.classCode  = configReadByte(bus, device, function, 0x0B);
+
+            finfo.headerType = configReadByte(bus, device, function, 0x0E);
+        }
+
+        return finfo;
+    }
+
     DeviceInfo getDevice(uint8_t bus, uint8_t device)
     {
         DeviceInfo dinfo;
@@ -77,18 +82,17 @@ namespace PCI
         dinfo.bus = bus;
         dinfo.device_no = device;
 
-        dinfo.vendorID = configReadWord(bus, device, 0, 0x00);
+        dinfo.functions[0] = getDeviceFunction(bus, device, 0);
 
-        if(dinfo.vendorID != 0xFFFF)
+        if((dinfo.functions[0].headerType & 0x80) > 0) dinfo.isMultiFunction = true;
+        else dinfo.isMultiFunction = false;
+
+        if(dinfo.isMultiFunction)
         {
-            dinfo.deviceID = configReadWord(bus, device, 0, 0x01);
-
-            dinfo.revisionID = configReadByte(bus, device, 0, 0x08);
-            dinfo.progIF     = configReadByte(bus, device, 0, 0x09);
-            dinfo.subClass   = configReadByte(bus, device, 0, 0x0A);
-            dinfo.classCode  = configReadByte(bus, device, 0, 0x0B);
-
-            dinfo.headerType = configReadByte(bus, device, 0, 0x0E);
+            for(uint8_t i = 1; i < 8; i++)
+            {
+                dinfo.functions[i] = getDeviceFunction(bus, device, i);
+            }
         }
 
         return dinfo;
@@ -96,15 +100,19 @@ namespace PCI
 
     void printDeviceInfoEntry(DeviceInfo& Dinfo)
     {
+        FunctionInfo& f0 = Dinfo.functions[0];
+
         printf("\t%3u | %2u     | 0x%2x  | %3u      | %3u     | 0x%4x    | 0x%4x   \n", Dinfo.bus, Dinfo.device_no
-                                            , Dinfo.classCode, Dinfo.subClass, Dinfo.progIF, Dinfo.vendorID, Dinfo.deviceID);
+                                            , f0.classCode, f0.subClass, f0.progIF, f0.vendorID, f0.deviceID);
     }
 
     void checkFunction(DeviceInfo& deviceInfo, uint8_t function)
     {
         uint8_t secondaryBus;
+
+        FunctionInfo& f0 = deviceInfo.functions[0];
         
-        if ((deviceInfo.classCode == 0x6) && (deviceInfo.subClass == 0x4))
+        if ((f0.classCode == 0x6) && (f0.subClass == 0x4))
         {
             secondaryBus = configReadByte(deviceInfo.bus, deviceInfo.device_no, function, 0x19);
             checkBus(secondaryBus);
@@ -119,7 +127,7 @@ namespace PCI
 
         printDeviceInfoEntry(deviceInfo);
 
-        if((deviceInfo.headerType & 0x80) != 0)
+        if((deviceInfo.functions[0].headerType & 0x80) > 0)
         {
             // multi function device
             for(uint8_t func = 1; func < 8; func++)
@@ -150,9 +158,9 @@ namespace PCI
         printf("PCI Buses:\n");
         printf("\tBUS | Device | Class | Subclass | Prog IF | Vendor ID | Device ID\n");
 
-        uint8_t headerType = configReadWord(0, 0, 0, 0x0E);
+        DeviceInfo device0 = getDevice(0, 0);
 
-        if ((headerType & 0x80) == 0)
+        if (!device0.isMultiFunction)
         {
             // Single PCI host controller
             checkBus(0);
@@ -162,7 +170,7 @@ namespace PCI
             // Multiple PCI host controllers
             for (uint8_t function = 0; function < 8; function++)
             {
-                if (configReadWord(0, 0, function, 0) != 0xFFFF) break;
+                if (device0.functions[function].vendorID != 0xFFFF) break;
                 checkBus(function);
             }
         }
