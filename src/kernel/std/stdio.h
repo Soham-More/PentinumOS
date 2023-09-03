@@ -20,4 +20,7 @@ void vprintf(const char* fmt, va_list vargs);
 // 'S': print a string with given size
 void printf(const char* fmt, ...);
 
+char getch();
+char getchar();
+
 void set_ostream(uint8_t out);

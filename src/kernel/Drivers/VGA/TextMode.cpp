@@ -137,6 +137,15 @@ namespace VGA
             case '\r':
                 screenX = 0;
                 break;
+            case '\b':
+                if(screenX > 0)
+                {
+                    screenX--;
+
+                    svideoBuffer[currPositionChar]  = 0;
+                    svideoBuffer[currPositionColor] = currentColor;
+                }
+                break;
             default:
                 svideoBuffer[currPositionChar]  = ch;
                 svideoBuffer[currPositionColor] = currentColor;

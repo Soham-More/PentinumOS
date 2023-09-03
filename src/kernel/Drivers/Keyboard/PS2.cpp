@@ -1,4 +1,4 @@
-#include "PS2.h"
+#include "PS2.hpp"
 
 #include <i686/x86.h>
 #include <std/logger.h>
@@ -8,7 +8,6 @@
 #define PS2_CCB_WRITE 0x60
 #define PS2_COMMAND 0x64
 #define PS2_STATUS_REGISTER 0x64
-#define PS2_DATA 0x60
 
 #define PS2_COMMAND_ACK 0xFA
 
@@ -22,7 +21,7 @@ enum PS2_CCB_FLAGS
     PS2_FIRST_PORT_TRANSLATION = 0x40,
 };
 
-void PS2_out(uint8_t port, uint8_t byte)
+uint8_t PS2_out(uint8_t port, uint8_t byte)
 {
     // 3 seconds maybe??
     PIT_setTimeout(54);
@@ -32,12 +31,15 @@ void PS2_out(uint8_t port, uint8_t byte)
 
     if(PIT_hasTimedOut())
     {
-        log_error("PS2 Driver Failed\n");
+        log_error("PS2 Driver Timeout\n");
+        return 0xFC;
     }
     else
     {
         x86_outb(port, byte);
     }
+
+    return 0;
 }
 
 uint8_t PS2_in(uint8_t port)
@@ -50,7 +52,7 @@ uint8_t PS2_in(uint8_t port)
 
     if(PIT_hasTimedOut())
     {
-        log_error("\nPS2 Driver Failed\n");
+        log_error("\nPS2 Driver Timeout\n");
         return 0xFC;
     }
 
@@ -95,20 +97,21 @@ void PS2_init()
 
     // enable PS2 port 1
     PS2_out(PS2_COMMAND, 0xAE);
+    PS2_out(PS2_COMMAND, 0xA8);
 
-    // enable IRQs
-    ccb |= PS2_FIRST_INTERRUPT_ENABLE;
+    // enable IRQs and translation
+    ccb |= PS2_FIRST_INTERRUPT_ENABLE | PS2_FIRST_PORT_TRANSLATION;
     PS2_out(PS2_COMMAND, PS2_CCB_WRITE);
     PS2_out(PS2_DATA, ccb);
 
     // reset PS2 1 controller
-    PS2_out(PS2_COMMAND, 0xFF);
+    PS2_out(PS2_DATA, 0xFF);
 
     uint8_t ack = PS2_in(PS2_DATA);
 
     if(ack == PS2_COMMAND_ACK)
     {
-        if(PS2_in(PS2_DATA) != 0x55)
+        if(PS2_in(PS2_DATA) != 0xAA)
         {
             log_warn("PS2 reset failed: ccb = %2x\n", ccb);
             return;
@@ -119,5 +122,4 @@ void PS2_init()
         log_warn("PS2 reset failed: ccb = %2x\n", ccb);
         return;
     }
-
 }

@@ -9,6 +9,8 @@
 #include <i686/PIC.h>
 #include <Drivers/PIT.h>
 #include <std/memory.h>
+#include <Drivers/Keyboard/PS2.hpp>
+#include <Drivers/Keyboard/PS2Keyboard.hpp>
 
 typedef struct 
 {
@@ -41,6 +43,14 @@ void kernel_init()
 	init_irq();
 	PIT_init();
 	printf("ok\n");
+
+	printf("initialising PS2...  ");
+	PS2_init();
+	printf("ok\n");
+
+	printf("initialising Keyboard...  ");
+	PS2::init_keyboard();
+	printf("ok\n");
 }
 
 // export "C" to prevent g++ from
@@ -54,7 +64,16 @@ _export void start(KernelInfo kernelInfo)
 	// after this both memnory maps become useless
 	mem_init(kernelInfo.e820_mmap, kernelInfo.kernelMap);
 
-	;
+	PS2::flush_keyboard();
+
+	printf("Console Mode\n>");
+
+	char c = 0;
+
+	while(c != '\n')
+	{
+		c = getchar();
+	}
 
 	for (;;);
 }
