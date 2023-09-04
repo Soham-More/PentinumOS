@@ -58,6 +58,8 @@ namespace PCI
     {
         FunctionInfo finfo;
 
+        finfo.function = function;
+
         finfo.vendorID = configReadWord(bus, device, function, 0x00);
 
         if(finfo.vendorID != 0xFFFF)

@@ -1,17 +1,15 @@
 #include <stdint.h>
 #include <std/memory.h>
 #include <std/stdio.h>
-#include <Drivers/VGA/VGA.hpp>
 #include <i686/GDT.h>
 #include <i686/IDT.h>
 #include <i686/ISR.h>
 #include <i686/IRQ.h>
 #include <i686/PIC.h>
+#include <Drivers/Drivers.h>
 #include <Drivers/PIT.h>
 #include <std/memory.h>
-#include <Drivers/PCI/PCI.hpp>
-#include <Drivers/Keyboard/PS2.hpp>
-#include <Drivers/Keyboard/PS2Keyboard.hpp>
+#include <Bus/PCI/PCI.hpp>
 
 typedef struct 
 {

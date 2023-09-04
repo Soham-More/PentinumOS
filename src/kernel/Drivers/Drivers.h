@@ -2,5 +2,6 @@
 
 #include "VGA/VGA.hpp"
 #include "DCOM/DebugCOM.hpp"
-#include "Keyboard/PS2.hpp"
-#include "Keyboard/PS2Keyboard.hpp"
+#include "PS2/PS2.hpp"
+#include "PS2/PS2Keyboard.hpp"
+#include "PIT.h"

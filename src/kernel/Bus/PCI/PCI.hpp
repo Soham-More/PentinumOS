@@ -37,6 +37,8 @@ namespace PCI
 
     struct FunctionInfo
     {
+        uint8_t function;
+
         uint16_t vendorID;
         uint16_t deviceID;
         uint8_t  revisionID;
