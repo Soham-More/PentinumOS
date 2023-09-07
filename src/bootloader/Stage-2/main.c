@@ -8,11 +8,19 @@
 
 static MemoryMap g_memoryMap;
 
+typedef struct
+{
+	uint64_t memorySize;
+	uint32_t* pageDirectory;
+	uint32_t* pageTableArray;
+}_packed PagingInfo;
+
 typedef struct 
 {
 	uint8_t bootDrive;
 	void* e820_mmap;
 	void* kernelMap;
+	PagingInfo* pageInfo;
 } _packed KernelInfo;
 
 typedef void (*KernelStart)(KernelInfo kernelInfo);
@@ -70,12 +78,20 @@ void _cdecl start(uint8_t bootDrive, void* e820_mmap)
 		goto exit;
 	}
 
-	initialisePages(getMemorySize(e820_mmap));
+	uint64_t memSize = getMemorySize(e820_mmap);
+
+	initialisePages(memSize);
+
+	PagingInfo pInfo;
+	pInfo.pageDirectory = PAGE_DIRECTORY_PHYSICAL_ADDRESS;
+	pInfo.pageTableArray = PAGE_TABLE_ARRAY_PHYSICAL_ADDRESS;
+	pInfo.memorySize = memSize;
 
 	KernelInfo kernelInfo;
 	kernelInfo.bootDrive = bootDrive;
 	kernelInfo.e820_mmap = e820_mmap;
 	kernelInfo.kernelMap = kernelMap;
+	kernelInfo.pageInfo = &pInfo;
 
 	KernelStart beginKernel = (KernelStart)kernelEntry;
 

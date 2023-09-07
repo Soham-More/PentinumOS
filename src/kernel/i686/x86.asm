@@ -47,3 +47,13 @@ x86_inl:
     in eax, dx
     ret
 
+; uint32_t _cdecl x86_flushTLB();
+global x86_flushTLB
+x86_flushTLB:
+    [bits 32]
+
+    mov eax, cr3
+    mov cr3, eax
+
+    ret
+

@@ -8,6 +8,8 @@
 #define null (char)0
 #define nullptr 0
 
+typedef uint32_t size_t;
+
 #ifdef _novscode
 #define _export extern "C"
 #define _import extern "C"

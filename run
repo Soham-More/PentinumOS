@@ -3,6 +3,6 @@
 #-hda build/image.img \
 
 qemu-system-i386 -debugcon stdio \
-                        -drive id=disk,file=build/image.img,if=none \
-                        -device ahci,id=ahci \
-                        -device ide-hd,drive=disk,bus=ahci.0
+                        -drive if=none,id=stick,format=raw,file=build/image.img \
+                        -device usb-ehci,id=ehci                              \
+                        -device usb-storage,bus=ehci.0,drive=stick

@@ -51,12 +51,12 @@ namespace PS2
         KeyState state;
     };
     
-    KeyInfo keys[256] = { KeyInfo{KeyState::Released} };
+    volatile KeyInfo keys[256] = { KeyInfo{KeyState::Released} };
 
-    uint8_t latestKey = 0;
+    volatile uint8_t latestKey = 0;
 
-    bool waitingForKey = false;
-    bool shiftMode = false;
+    volatile bool waitingForKey = false;
+    volatile bool shiftMode = false;
 
     const char ASCIITable[] = {
          0 ,  0 , '1', '2',

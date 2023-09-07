@@ -1,13 +1,19 @@
 #pragma once
 #include <includes.h>
+#include <System/Boot.h>
 
-void memcpy(void* src, void* dst, uint32_t size);
-void memset(void* src, uint8_t value, uint32_t size);
+void memcpy(const void* src, void* dst, size_t size);
+void memset(void* src, uint8_t value, size_t size);
 
-void mem_init(void* e820_mmap, void* _kernelMap);
+void mem_init(KernelInfo& kernelInfo);
 
 void* alloc_page();
-void* alloc_pages(uint32_t count);
+void* alloc_pages(size_t count);
+// allocate more pages, preferably without changing the pointer
+void* realloc_pages(void* pointer, size_t prev, size_t count);
+
+// allocate a new location and copy data there
+void* alloc_cp(const void* data, size_t size);
 
 void free_page(void* mem);
-void free_pages(void* mem, uint32_t count);
+void free_pages(void* mem, size_t count);

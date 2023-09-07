@@ -10,13 +10,10 @@
 #include <Drivers/PIT.h>
 #include <std/memory.h>
 #include <Bus/PCI/PCI.hpp>
-
-typedef struct 
-{
-	uint8_t bootDrive;
-	void* e820_mmap;
-	void* kernelMap;
-} _packed KernelInfo;
+#include <System/Paging.hpp>
+#include <System/Boot.h>
+#include <std/logger.h>
+#include <std/vector.hpp>
 
 _import void _init();
 
@@ -54,18 +51,30 @@ void kernel_init()
 
 // export "C" to prevent g++ from
 // mangling this function's name
-// and confusing the linker	
+// and confusing the linker
 _export void start(KernelInfo kernelInfo)
 {
 	kernel_init();
 
+	sys::initialisePaging(*kernelInfo.pagingInfo);
+
 	// initalise memory manager
-	// after this both memnory maps become useless
-	mem_init(kernelInfo.e820_mmap, kernelInfo.kernelMap);
+	mem_init(kernelInfo);
 
 	PS2::flush_keyboard();
 
 	PCI::enumeratePCIBus();
+
+	std::vector<uint32_t> v = {10, 20, 30};
+
+	printf("\n{");
+
+	for(uint32_t i = 0; i < v.size(); i++)
+	{
+		printf("%d, ", v[i]);
+	}
+
+	printf("}\n");
 
 	for (;;);
 }

@@ -17,7 +17,6 @@ namespace PCI
         FAST_BACKTOBACK_ENABLE  = 0x100,
         INT_DISABLE             = 0x200,
     };
-
     enum class Status : uint16_t
     {
         INT_STATUS      = 0x08,
@@ -52,7 +51,6 @@ namespace PCI
 
         bool isValid();
     };
-
     struct DeviceInfo
     {
         uint8_t bus;
@@ -98,6 +96,17 @@ namespace PCI
     void checkBus(uint8_t bus);
 
     void enumeratePCIBus();
+
+    typedef void (*PCI_DEVICE_INIT)(DeviceInfo&);
+
+    struct PCIDeviceDriver
+    {
+        uint8_t classCode;
+        uint8_t subClass;
+        PCI_DEVICE_INIT pciDeviceInitialiser;
+    };
+
+    void setPCIDeviceDriver();
 
     FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
     DeviceInfo getDevice(uint8_t bus, uint8_t device);

@@ -4,18 +4,16 @@
 #include <std/math.h>
 #include <i686/Exception.h>
 
-#define PAGE_SIZE 4096
-
 static std::Bitmap pagesAllocated;
 
-void memcpy(void* src, void* dst, uint32_t size)
+void memcpy(const void* src, void* dst, size_t size)
 {
     for(uint32_t i = 0; i < size; i++)
     {
         ((char*)dst)[i] = ((char*)src)[i];
     }
 }
-void memset(void* src, uint8_t value, uint32_t size)
+void memset(void* src, uint8_t value, size_t size)
 {
 	for(uint32_t i = 0; i < size; i++)
     {
@@ -74,19 +72,16 @@ void mem_mark_reserved(uint32_t begin, uint32_t size)
     pagesAllocated.setBits(beginPage, pageSize, true);
 }
 
-void mem_init(void* e820_mmap, void* _kernelMap)
+void mem_init(KernelInfo& kernelInfo)
 {
     e820_MemoryMap memoryMap;
-
-    memoryMap.entryCount = *(uint32_t*)e820_mmap;
-
-    memoryMap.entries = (e820_MemoryMapEntry*)((uint32_t*)e820_mmap + 1);
+    memoryMap.entryCount = *(size_t*)kernelInfo.e820_mmap;
+    memoryMap.entries = (e820_MemoryMapEntry*)((size_t*)kernelInfo.e820_mmap + 1);
     
-    KernelMap& kernelMap = *(KernelMap*)_kernelMap;
-
+    KernelMap& kernelMap = *(KernelMap*)kernelInfo.kernelMap;
     uint64_t lastAddress = 0;
 
-    for(uint32_t i = 0; i < memoryMap.entryCount; i++)
+    for(size_t i = 0; i < memoryMap.entryCount; i++)
     {
         if(memoryMap.entries[i].baseAddress + memoryMap.entries[i].regionSize > lastAddress)
         {
@@ -101,7 +96,7 @@ void mem_init(void* e820_mmap, void* _kernelMap)
     // then reserve first page
     pagesAllocated = std::Bitmap(BITMAP_MEMORY_ADDR, DivRoundDown(lastAddress, PAGE_SIZE), true);
 
-    for(uint32_t i = 0; i < memoryMap.entryCount; i++)
+    for(size_t i = 0; i < memoryMap.entryCount; i++)
     {
         e820_MemoryMapEntry& entry = memoryMap.entries[i];
 
@@ -111,15 +106,21 @@ void mem_init(void* e820_mmap, void* _kernelMap)
         }
     }
 
-    for(uint32_t i = 0; i < kernelMap.entryCount; i++)
+    for(size_t i = 0; i < kernelMap.entryCount; i++)
     {
         mem_mark_reserved(kernelMap.entries[i].sectionBegin, kernelMap.entries[i].sectionSize);
     }
 
-    mem_mark_reserved((uint32_t)BITMAP_MEMORY_ADDR, lastAddress);
+    mem_mark_reserved((size_t)BITMAP_MEMORY_ADDR, lastAddress);
 
     // reserve first page
     pagesAllocated.set(0, true);
+
+    // copy all contents of kernelInfo
+    kernelInfo.e820_mmap = alloc_cp((void*)kernelInfo.e820_mmap, sizeof(uint32_t) + memoryMap.entryCount * sizeof(e820_MemoryMapEntry));
+    kernelInfo.kernelMap = alloc_cp((void*)kernelInfo.kernelMap, sizeof(uint32_t) + kernelMap.entryCount * sizeof(KernelMapEntry));
+
+    kernelInfo.pagingInfo = (PagingInfo*)alloc_cp((void*)kernelInfo.pagingInfo, sizeof(PagingInfo));
 }
 
 void* alloc_page()
@@ -136,9 +137,9 @@ void* alloc_page()
 
     return reinterpret_cast<void*>(freePage * PAGE_SIZE);
 }
-void* alloc_pages(uint32_t count)
+void* alloc_pages(size_t count)
 {
-    uint32_t freePage = pagesAllocated.find_false_bits(count);
+    size_t freePage = pagesAllocated.find_false_bits(count);
 
     // no memory available
     if(freePage == std::Bitmap::npos)
@@ -146,12 +147,43 @@ void* alloc_pages(uint32_t count)
         return nullptr;
     }
 
-    for(uint32_t i = 0; i < count; i++)
-    {
-        pagesAllocated.set(freePage + i, true);
-    }
+    pagesAllocated.setBits(freePage, count, true);
 
     return reinterpret_cast<void*>(freePage * PAGE_SIZE);
+}
+void* realloc_pages(void* pointer, size_t prev_count, size_t req_count)
+{
+    uint32_t loc = reinterpret_cast<uint32_t>(pointer) / PAGE_SIZE;
+
+    for(size_t i = prev_count; i < req_count; i++)
+    {
+        // if allocated, then this array can't be extended
+        if(pagesAllocated.get(i + loc))
+        {
+            void* newLoc = alloc_pages(req_count);
+
+            memcpy(pointer, newLoc, prev_count * PAGE_SIZE);
+            free_pages(pointer, prev_count);
+            
+            return newLoc;
+        }
+    }
+
+    // if here then, memory can be extended
+    pagesAllocated.setBits(loc, req_count, true);
+    return pointer;
+}
+
+void* alloc_cp(const void* data, size_t size)
+{
+    size_t pageCount = DivRoundUp(size, PAGE_SIZE);
+
+    void* loc = alloc_pages(pageCount);
+    if(loc == nullptr) return nullptr;
+
+    memcpy(data, loc, size);
+
+    return loc;
 }
 
 void free_page(void* mem)
@@ -173,15 +205,16 @@ void free_page(void* mem)
     pagesAllocated.set(loc, false);
 }
 
-void free_pages(void* mem, uint32_t count)
+void free_pages(void* mem, size_t count)
 {
-    uint32_t loc = reinterpret_cast<uint32_t>(mem);
+    size_t loc = reinterpret_cast<size_t>(mem);
 
     // if not at a page boundary
     // it may not be a allocated page
     // do not free
     // throw an exception once it is set up
-    if(loc & 0xFFF)
+    // also thow an exception if mem is nullptr
+    if(loc & 0xFFF > 0 || mem == nullptr)
     {
         x86_raise(0);
     }

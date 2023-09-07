@@ -330,4 +330,3 @@ x86_flushTLB:
     mov cr3, eax
 
     ret
-

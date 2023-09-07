@@ -1,12 +1,19 @@
 #include "PCI.hpp"
 
 #include <std/stdio.h>
+#include <std/logger.h>
 #include <i686/x86.h>
+#include <std/vector.hpp>
 
 namespace PCI
 {
     const uint16_t CONFIG_ADDRESS = 0xCF8;
     const uint16_t CONFIG_DATA    = 0xCFC;
+
+    bool FunctionInfo::isValid()
+    {
+        return vendorID != 0xFFFF;
+    }
 
     bool DeviceInfo::isValid()
     {
@@ -71,7 +78,8 @@ namespace PCI
             finfo.subClass   = configReadByte(bus, device, function, 0x0A);
             finfo.classCode  = configReadByte(bus, device, function, 0x0B);
 
-            finfo.headerType = configReadByte(bus, device, function, 0x0E);
+            // mask multi function bit
+            finfo.headerType = configReadByte(bus, device, function, 0x0E) & (~0x80);
         }
 
         return finfo;
@@ -86,7 +94,9 @@ namespace PCI
 
         dinfo.functions[0] = getDeviceFunction(bus, device, 0);
 
-        if((dinfo.functions[0].headerType & 0x80) > 0) dinfo.isMultiFunction = true;
+        uint8_t multiFunction = configReadByte(bus, device, 0, 0x0E) & 0x80;
+
+        if(multiFunction > 0) dinfo.isMultiFunction = true;
         else dinfo.isMultiFunction = false;
 
         if(dinfo.isMultiFunction)
@@ -104,7 +114,7 @@ namespace PCI
     {
         FunctionInfo& f0 = Dinfo.functions[0];
 
-        printf("\t%3u | %2u     | 0x%2x  | %3u      | %3u     | 0x%4x    | 0x%4x   \n", Dinfo.bus, Dinfo.device_no
+        log_info("\t%3u | %2u     | 0x%2x  | %3u      | 0x%2x    | 0x%4x    | 0x%4x   \n", Dinfo.bus, Dinfo.device_no
                                             , f0.classCode, f0.subClass, f0.progIF, f0.vendorID, f0.deviceID);
     }
 
@@ -134,7 +144,7 @@ namespace PCI
             // multi function device
             for(uint8_t func = 1; func < 8; func++)
             {
-                if(configReadWord(deviceInfo.bus, deviceInfo.device_no, func, 0) != 0xFFFF)
+                if(deviceInfo.functions[func].isValid())
                 {
                     checkFunction(deviceInfo, func);
                 }
@@ -157,8 +167,8 @@ namespace PCI
 
     void enumeratePCIBus()
     {
-        printf("PCI Buses:\n");
-        printf("\tBUS | Device | Class | Subclass | Prog IF | Vendor ID | Device ID\n");
+        log_info("PCI Devices:\n");
+        log_info("\tBUS | Device | Class | Subclass | Prog IF | Vendor ID | Device ID\n");
 
         DeviceInfo device0 = getDevice(0, 0);
 
