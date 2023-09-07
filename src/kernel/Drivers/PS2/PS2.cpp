@@ -23,8 +23,7 @@ enum PS2_CCB_FLAGS
 
 uint8_t PS2_out(uint8_t port, uint8_t byte)
 {
-    // 3 seconds maybe??
-    PIT_setTimeout(54);
+    PIT_setTimeout(3);
 
     // wait till status in is clear or till timeout
     while((x86_inb(PS2_STATUS_REGISTER) & 0x02) > 0 && !PIT_hasTimedOut());
@@ -44,8 +43,7 @@ uint8_t PS2_out(uint8_t port, uint8_t byte)
 
 uint8_t PS2_in(uint8_t port)
 {
-    // 3 seconds maybe??
-    PIT_setTimeout(54);
+    PIT_setTimeout(3);
 
     // wait till status out is set or timeout
     while((x86_inb(PS2_STATUS_REGISTER) & 0x01) == 0 && !PIT_hasTimedOut());
