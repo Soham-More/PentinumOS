@@ -17,6 +17,19 @@
 
 _import void _init();
 
+extern "C" void __cxa_pure_virtual(){;}
+
+extern "C" int __cxa_atexit(void (*destructor) (void *), void *arg, void *dso)
+{
+    arg;
+    dso;
+    return 0;
+}
+extern "C" void __cxa_finalize(void *f)
+{
+    f;
+}
+
 void kernel_init()
 {
 	_init();
@@ -65,16 +78,7 @@ _export void start(KernelInfo kernelInfo)
 
 	PCI::enumeratePCIBus();
 
-	std::vector<uint32_t> v = {10, 20, 30};
-
-	printf("\n{");
-
-	for(uint32_t i = 0; i < v.size(); i++)
-	{
-		printf("%d, ", v[i]);
-	}
-
-	printf("}\n");
+	PCI::prettyPrintDevices();
 
 	for (;;);
 }

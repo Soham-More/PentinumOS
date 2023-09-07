@@ -39,7 +39,7 @@ namespace std
                 }
 
                 // if size is less than pages allocated then, add element
-                if(size < pageSize * PAGE_SIZE)
+                if(dataSize < pageSize * PAGE_SIZE)
                 {
                     data[dataSize] = item;
                     dataSize++;

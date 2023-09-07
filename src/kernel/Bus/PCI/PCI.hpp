@@ -36,6 +36,10 @@ namespace PCI
 
     struct FunctionInfo
     {
+        // which device?
+        uint8_t bus;
+        uint8_t device_no;
+
         uint8_t function;
 
         uint16_t vendorID;
@@ -50,6 +54,12 @@ namespace PCI
         uint8_t headerType;
 
         bool isValid();
+
+        // returns true if success
+        bool self_test();
+
+        // gets capability pointer
+        uint8_t getCapabilityPointer();
     };
     struct DeviceInfo
     {
@@ -88,26 +98,30 @@ namespace PCI
     uint32_t configReadRegister(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t _register);
 
     uint32_t configReadDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
-    uint16_t configReadWord(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
-    uint8_t configReadByte(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
+    uint16_t configReadWord (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
+    uint8_t  configReadByte (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
+
+    uint32_t configReadDword(FunctionInfo& function, uint8_t register_offset);
+    uint16_t configReadWord (FunctionInfo& function, uint8_t register_offset);
+    uint8_t  configReadByte (FunctionInfo& function, uint8_t register_offset);
+
+    void configWriteDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint32_t value);
+    void configWriteWord (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint16_t value);
+    void configWriteByte (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint8_t value);
+
+    void configWriteDword(FunctionInfo& function, uint8_t register_offset, uint32_t value);
+    void configWriteWord (FunctionInfo& function, uint8_t register_offset, uint16_t value);
+    void configWriteByte (FunctionInfo& function, uint8_t register_offset, uint8_t  value);
+
+    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
+    DeviceInfo getDevice(uint8_t bus, uint8_t device);
 
     void checkFunction(DeviceInfo& deviceInfo, uint8_t function);
     void checkDevice(DeviceInfo& deviceInfo);
     void checkBus(uint8_t bus);
 
     void enumeratePCIBus();
+    void prettyPrintDevices();
 
-    typedef void (*PCI_DEVICE_INIT)(DeviceInfo&);
-
-    struct PCIDeviceDriver
-    {
-        uint8_t classCode;
-        uint8_t subClass;
-        PCI_DEVICE_INIT pciDeviceInitialiser;
-    };
-
-    void setPCIDeviceDriver();
-
-    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
-    DeviceInfo getDevice(uint8_t bus, uint8_t device);
+    void initDevices();
 }

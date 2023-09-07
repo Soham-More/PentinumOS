@@ -5,6 +5,7 @@
 #include <i686/Exception.h>
 
 static std::Bitmap pagesAllocated;
+static uint64_t maxPageCount;
 
 void memcpy(const void* src, void* dst, size_t size)
 {
@@ -96,6 +97,8 @@ void mem_init(KernelInfo& kernelInfo)
     // then reserve first page
     pagesAllocated = std::Bitmap(BITMAP_MEMORY_ADDR, DivRoundDown(lastAddress, PAGE_SIZE), true);
 
+    maxPageCount = DivRoundDown(lastAddress, PAGE_SIZE);
+
     for(size_t i = 0; i < memoryMap.entryCount; i++)
     {
         e820_MemoryMapEntry& entry = memoryMap.entries[i];
@@ -172,6 +175,27 @@ void* realloc_pages(void* pointer, size_t prev_count, size_t req_count)
     // if here then, memory can be extended
     pagesAllocated.setBits(loc, req_count, true);
     return pointer;
+}
+
+void* alloc_pages_aligned(size_t align, size_t count)
+{
+    for(size_t pageAddr = align; pageAddr < maxPageCount; pageAddr += align)
+    {
+        bool found = true;
+        for(size_t i = 0; i < count; i++)
+        {
+            // if it is used up, then skip this alignement
+            if(pagesAllocated.get(pageAddr + i))
+            {
+                found = false;
+                break;
+            }
+        }
+        if(found) return reinterpret_cast<void*>(pageAddr * PAGE_SIZE);
+    }
+
+    // did not find the memory with the alignment requirement
+    return nullptr;
 }
 
 void* alloc_cp(const void* data, size_t size)
