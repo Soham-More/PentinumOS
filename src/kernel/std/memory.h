@@ -14,6 +14,8 @@ void* realloc_pages(void* pointer, size_t prev, size_t count);
 
 void* alloc_pages_aligned(size_t align, size_t count);
 
+void* alloc_io_space_pages(size_t align, size_t count);
+
 // allocate a new location and copy data there
 void* alloc_cp(const void* data, size_t size);
 

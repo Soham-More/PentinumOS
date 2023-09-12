@@ -13,3 +13,5 @@ _import uint32_t _asmcall x86_inl(uint16_t port);
 
 // returns cr3 value
 _import uint32_t _asmcall x86_flushTLB();
+
+_import uint32_t _asmcall x86_flushCache();

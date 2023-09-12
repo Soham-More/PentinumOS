@@ -14,6 +14,7 @@
 #include <System/Boot.h>
 #include <std/logger.h>
 #include <std/vector.hpp>
+#include <Bus/USB/EHCI/EHCI.hpp>
 
 _import void _init();
 
@@ -79,6 +80,13 @@ _export void start(KernelInfo kernelInfo)
 	PCI::enumeratePCIBus();
 
 	PCI::prettyPrintDevices();
+
+	PIC_irq_mask(0);
+
+	// get USB device
+	PCI::FunctionInfo USB_storage = PCI::getFunction(0x0C, 0x03);
+
+	EHCI::init_ehci_device(USB_storage);
 
 	for (;;);
 }

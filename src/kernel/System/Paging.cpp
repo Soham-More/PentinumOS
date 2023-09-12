@@ -76,11 +76,6 @@ namespace sys
 
         uint32_t* pageTable = (uint32_t*)((char*)g_pagingInfo.pageTableArray + (PAGE_SIZE * indexPD));
 
-        // set PD entry to PT physical address
-        // PT physical address must be 4KiB aligned
-        // mark as present
-        g_pagingInfo.pageDirectory[indexPD] = ((uint32_t)pageTable) | (flags & 0xFFF) | 0x01;
-
         // get address stored in page table
         uint32_t pageTableEntryAddr = pageTable[indexPT] & ~(0xFFF);
 
@@ -105,11 +100,6 @@ namespace sys
             uint32_t indexPT = (pageVirtualAddress >> 12) & 0x03FF;
 
             uint32_t* pageTable = (uint32_t*)((char*)g_pagingInfo.pageTableArray + (PAGE_SIZE * indexPD));
-
-            // set PD entry to PT physical address
-            // PT physical address must be 4KiB aligned
-            // mark as present
-            g_pagingInfo.pageDirectory[indexPD] = ((uint32_t)pageTable) | (flags & 0xFFF) | 0x01;
 
             // get address stored in page table
             uint32_t pageTableEntryAddr = pageTable[indexPT] & ~(0xFFF);

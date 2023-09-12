@@ -57,3 +57,9 @@ x86_flushTLB:
 
     ret
 
+; _import uint32_t _asmcall x86_flushCache();
+global x86_flushCache
+x86_flushCache:
+    [bits 32]
+    invd
+    ret

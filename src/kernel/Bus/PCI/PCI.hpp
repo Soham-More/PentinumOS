@@ -2,6 +2,9 @@
 
 #include <includes.h>
 
+#define PCI_INIT_OK 0
+#define PCI_INIT_NO_DRIVER 1
+
 namespace PCI
 {
     enum class Command : uint16_t
@@ -34,6 +37,9 @@ namespace PCI
         DETECTED_PARITY_ERROR = 0x4000,
     };
 
+    struct FunctionInfo;
+    typedef uint32_t(*pci_device_init_driver)(FunctionInfo);
+
     struct FunctionInfo
     {
         // which device?
@@ -53,6 +59,8 @@ namespace PCI
 
         uint8_t headerType;
 
+        pci_device_init_driver pciDeviceInit;
+
         bool isValid();
 
         // returns true if success
@@ -60,6 +68,9 @@ namespace PCI
 
         // gets capability pointer
         uint8_t getCapabilityPointer();
+
+        // init pci device by calling the driver
+        uint32_t init();
     };
     struct DeviceInfo
     {
@@ -95,6 +106,9 @@ namespace PCI
         uint8_t  maxLatency;
     } _packed;
 
+    // register_offset: offset of register in bytes
+    // Config registers read write operations
+
     uint32_t configReadRegister(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t _register);
 
     uint32_t configReadDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
@@ -113,8 +127,12 @@ namespace PCI
     void configWriteWord (FunctionInfo& function, uint8_t register_offset, uint16_t value);
     void configWriteByte (FunctionInfo& function, uint8_t register_offset, uint8_t  value);
 
+    // get devices
+
     FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
     DeviceInfo getDevice(uint8_t bus, uint8_t device);
+
+    // Bus enumeration related
 
     void checkFunction(DeviceInfo& deviceInfo, uint8_t function);
     void checkDevice(DeviceInfo& deviceInfo);
@@ -123,5 +141,9 @@ namespace PCI
     void enumeratePCIBus();
     void prettyPrintDevices();
 
-    void initDevices();
+    // initialises and returns BAR location
+    void* initializeBAR(FunctionInfo& function, uint8_t bar, bool isFrameBuffer = false);
+
+    // get function which matches the given class code and subClass
+    FunctionInfo getFunction(uint8_t classCode, uint8_t subClass);
 }

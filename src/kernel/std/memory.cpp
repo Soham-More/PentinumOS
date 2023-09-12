@@ -58,6 +58,8 @@ typedef struct
 #define ACPI_ATTRIB_IGNORE          0x01
 #define ACPI_ATTRIB_NON_VOLATILE    0x02
 
+e820_MemoryMap memoryMap;
+
 void mem_mark_free(uint32_t begin, uint32_t size)
 {
     uint32_t beginPage = DivRoundUp(begin, PAGE_SIZE);
@@ -75,7 +77,6 @@ void mem_mark_reserved(uint32_t begin, uint32_t size)
 
 void mem_init(KernelInfo& kernelInfo)
 {
-    e820_MemoryMap memoryMap;
     memoryMap.entryCount = *(size_t*)kernelInfo.e820_mmap;
     memoryMap.entries = (e820_MemoryMapEntry*)((size_t*)kernelInfo.e820_mmap + 1);
     
@@ -95,7 +96,7 @@ void mem_init(KernelInfo& kernelInfo)
     // then reserve all kernel related pages
     // then reserve all bitmap related pages
     // then reserve first page
-    pagesAllocated = std::Bitmap(BITMAP_MEMORY_ADDR, DivRoundDown(lastAddress, PAGE_SIZE), true);
+    pagesAllocated = std::Bitmap(BITMAP_MEMORY_ADDR, DivRoundDown(UINT32_MAX, PAGE_SIZE), true);
 
     maxPageCount = DivRoundDown(lastAddress, PAGE_SIZE);
 
@@ -191,7 +192,11 @@ void* alloc_pages_aligned(size_t align, size_t count)
                 break;
             }
         }
-        if(found) return reinterpret_cast<void*>(pageAddr * PAGE_SIZE);
+        if(found)
+        {
+            pagesAllocated.setBits(pageAddr, count, true);
+            return reinterpret_cast<void*>(pageAddr * PAGE_SIZE);
+        }
     }
 
     // did not find the memory with the alignment requirement
@@ -208,6 +213,33 @@ void* alloc_cp(const void* data, size_t size)
     memcpy(data, loc, size);
 
     return loc;
+}
+
+void* alloc_io_space_pages(size_t align, size_t count)
+{
+    // start seaching before last entry
+    // most likely it is 4G limit
+    for(size_t pageAddr = memoryMap.entries[memoryMap.entryCount - 1].baseAddress - align; pageAddr > 0; pageAddr -= align)
+    {
+        bool found = true;
+        for(size_t i = 0; i < count; i++)
+        {
+            // if it is used up, then skip this alignement
+            if(pagesAllocated.get(pageAddr + i))
+            {
+                found = false;
+                break;
+            }
+        }
+        if(found)
+        {
+            pagesAllocated.setBits(pageAddr, count, true);
+            return reinterpret_cast<void*>(pageAddr * PAGE_SIZE);
+        }
+    }
+
+    // did not find the memory with the alignment requirement
+    return nullptr;
 }
 
 void free_page(void* mem)

@@ -9,10 +9,10 @@ namespace sys
     {
         PAGE_PRESENT = 0x01,
         PAGE_RW      = 0x02,
-        PAGE_USER    = 0x03,
+        PAGE_USER    = 0x04,
 
-        PAGE_DISABLE_CACHING = 0x08,
-        PAGE_WRITETHROUGH = 0x04,
+        PAGE_DISABLE_CACHING = 0x10,
+        PAGE_WRITETHROUGH = 0x08,
     };
 
     void initialisePaging(const PagingInfo& pagingInfo);

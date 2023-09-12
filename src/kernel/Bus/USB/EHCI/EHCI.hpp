@@ -1,8 +1,9 @@
 #pragma once
 
 #include <includes.h>
+#include <Bus/PCI/PCI.hpp>
 
-namespace USB
+namespace EHCI
 {
-    ;
+    void init_ehci_device(PCI::FunctionInfo device);
 }

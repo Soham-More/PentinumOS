@@ -12,7 +12,8 @@ void initialisePages(uint64_t totalMemory)
 {
     printf("Setting Up Identity Paging...  ");
 
-    for(uint32_t page_index = 0; page_index < ((totalMemory + PAGE_SIZE - 1)  / PAGE_SIZE); page_index += 1)
+    // maximum memory in 32-bit space
+    for(uint32_t page_index = 0; page_index < (((uint64_t)UINT32_MAX + 1) / PAGE_SIZE); page_index += 1)
     {
         uint32_t pagePhysicalAddress = page_index * PAGE_SIZE;
 

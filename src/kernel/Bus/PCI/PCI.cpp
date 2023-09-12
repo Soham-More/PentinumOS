@@ -4,6 +4,8 @@
 #include <std/logger.h>
 #include <i686/x86.h>
 #include <std/vector.hpp>
+#include <std/memory.h>
+#include <System/Paging.hpp>
 
 namespace PCI
 {
@@ -15,6 +17,13 @@ namespace PCI
     bool FunctionInfo::isValid()
     {
         return vendorID != 0xFFFF;
+    }
+
+    uint32_t FunctionInfo::init()
+    {
+        if(pciDeviceInit == nullptr) return PCI_INIT_NO_DRIVER;
+
+        return pciDeviceInit(*this);
     }
 
     bool DeviceInfo::isValid()
@@ -86,7 +95,7 @@ namespace PCI
 
         // send address
         x86_outl(CONFIG_ADDRESS, configAddress);
-        x86_outl(CONFIG_ADDRESS, value);
+        x86_outl(CONFIG_DATA, value);
     }
     void configWriteWord (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint16_t value)
     {
@@ -94,7 +103,7 @@ namespace PCI
 
         // preserve other bits
         uint32_t curr_value = configReadDword(bus_no, device_no, function, register_offset);
-        configWriteWord(bus_no, device_no, function, register_offset, (curr_value & ~(UINT16_MAX)) | value);
+        configWriteDword(bus_no, device_no, function, register_offset, (curr_value & ~(UINT16_MAX)) | value);
     }
     void configWriteByte (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint8_t value)
     {
@@ -139,6 +148,8 @@ namespace PCI
 
             // mask multi function bit
             finfo.headerType = configReadByte(bus, device, function, 0x0E) & (~0x80);
+
+            finfo.pciDeviceInit = nullptr;
         }
 
         return finfo;
@@ -248,62 +259,128 @@ namespace PCI
         }
     }
 
-    void initFunctionBAR(FunctionInfo& function, uint8_t bar)
+    // initialises and returns BARN location
+    void* initializeBAR(FunctionInfo& function, uint8_t bar, bool isFrameBuffer)
     {
-        uint8_t offset = (0x04 + bar) * 4;
+        uint8_t offset = 0x10 + (bar * 4);
 
         // preserve BAR Value
         uint32_t BAR = configReadDword(function, offset);
 
         uint32_t BAR_size = 0;
 
+        // disable memory decode and IO decode
+        uint16_t commandByte = configReadWord(function, 0x04);
+        commandByte &= ~(0x03);
+        configWriteWord(function, 0x04, commandByte);
+
+        // write all 1s
+        configWriteDword(function, offset, UINT32_MAX);
+
+        uint32_t BAR_encoded_size = configReadDword(function, offset);
+
         // if it is 0, it is a memory mapped bar
-        // ie 16-Byte aligned address
-        if(BAR & 0x1 == 0)
+        if((BAR_encoded_size & 0x01) == 0)
         {
-            // if it is 32-bit
-            if(BAR & 0x6 == 0x00)
+            if((BAR & 0x6) == 0x00)
             {
-                // write all 1s
-                configWriteDword(function, offset, UINT32_MAX);
-
-                uint32_t BAR_encoded_size = configReadDword(function, offset);
-
                 BAR_size = ~(BAR_encoded_size & ~((uint32_t)0xF));
             }
             // else if it is 16-bit
-            else if(BAR & 0x6 == 0x2)
+            else if((BAR & 0x6) == 0x2)
             {
-                // write all 1s
-                configWriteDword(function, offset, UINT32_MAX);
-
-                uint32_t BAR_encoded_size = configReadDword(function, offset);
-
-                BAR_size = ~(BAR_encoded_size & ~((uint32_t)0xF));
+                BAR_size = ~(BAR_encoded_size & ~((uint16_t)0xF));
             }
             // else if it is 64-bit
             // currently fails
-            else if(BAR & 0x6 == 0x4)
+            else if((BAR & 0x6) == 0x4)
             {
                 log_error("\ERROR: not supported\n\tDetected 64-bit BAR Device: bus:%d, device_no:%f, functionid:%d\n", function.bus, function.device_no, function.function);
-                return;
+                return nullptr;
             }
         }
-
-        ;
-    }
-
-    void initDevice(DeviceInfo& device)
-    {
-        // generic header
-        if(device.functions[0].headerType = 0)
+        // IO Mapped BAR
+        else
         {
-            ;
+            // TODO
         }
+        
+        // now allocate it some memory
+        uint32_t new_bar = reinterpret_cast<uint32_t>(alloc_io_space_pages((BAR_size + 1) / PAGE_SIZE, (BAR_size + 1) / PAGE_SIZE));
+
+        // BAR is prefetchable
+        if((BAR & (1 << 3)) > 0)
+        {
+            if(isFrameBuffer)
+            {
+                // mark as Write Comb
+                // TODO
+            }
+            else
+            {
+                // then it is write through
+                sys::setFlagsPages(new_bar, sys::PAGE_PRESENT | sys::PAGE_WRITETHROUGH, (BAR_size + 1) / PAGE_SIZE);
+            }
+        }
+        // mark as Uncachable
+        else
+        {
+            sys::setFlagsPages(new_bar, sys::PAGE_PRESENT | sys::PAGE_DISABLE_CACHING, (BAR_size  + 1) / PAGE_SIZE);
+        }
+        
+        // restore bar settings
+        new_bar |= BAR & 0xF;
+
+        configWriteDword(function, offset, new_bar);
+
+        // enable memory decode and IO decode
+        commandByte = configReadWord(function, 0x04);
+        commandByte |= 0x03;
+        configWriteWord(function, 0x04, commandByte);
+
+        uint32_t read_word = configReadDword(function, offset);
+
+        return reinterpret_cast<void*>(new_bar & ~(0xF));
     }
 
     void initDevices()
     {
-        ;
+        for(size_t i = 0; i < pciDevices.size(); i++)
+        {
+            pciDevices[i].functions[0].init();
+
+            if(!pciDevices[i].isMultiFunction) continue;
+
+            for(size_t i = 1; i < 8; i++)
+            {
+                pciDevices[i].functions[i].init();
+            }
+        }
+    }
+
+    FunctionInfo getFunction(uint8_t classCode, uint8_t subClass)
+    {
+        for(size_t i = 0; i < pciDevices.size(); i++)
+        {
+            if(pciDevices[i].functions[0].classCode == classCode && pciDevices[i].functions[0].subClass == subClass)
+            {
+                return pciDevices[i].functions[0];
+            }
+
+            if(!pciDevices[i].isMultiFunction) continue;
+
+            for(size_t j = 1; j < 8; j++)
+            {
+                if(pciDevices[i].functions[j].classCode == classCode && pciDevices[i].functions[j].subClass == subClass)
+                {
+                    return pciDevices[i].functions[j];
+                }
+            }
+        }
+
+        FunctionInfo f;
+        f.vendorID = 0xFFFF;
+
+        return f;
     }
 }
