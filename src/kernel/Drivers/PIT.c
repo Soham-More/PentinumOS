@@ -7,11 +7,9 @@ static volatile uint32_t PIT_ticks_till_timeout = 0;
 static volatile bool PIT_timer_enabled = false;
 static volatile bool PIT_timedout = false;
 
-void PIT_timer_irq(Registers* registers)
+void _no_stack_trace PIT_timer_irq(Registers* registers)
 {
     if(!PIT_timer_enabled) return;
-
-    PIT_ticks_till_timeout--;
 
     // ran out of time
     if(PIT_ticks_till_timeout == 0)
@@ -19,6 +17,8 @@ void PIT_timer_irq(Registers* registers)
         PIT_timer_enabled = false;
         PIT_timedout = true;
     }
+
+    PIT_ticks_till_timeout--;
 }
 
 void PIT_setTimeout(uint32_t timeOut)

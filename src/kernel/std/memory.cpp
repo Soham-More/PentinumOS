@@ -4,6 +4,11 @@
 #include <std/math.h>
 #include <i686/Exception.h>
 
+// TODO:
+// add checks for Out of bound allocations
+// Use a linked list allocator?
+// 
+
 static std::Bitmap pagesAllocated;
 static uint64_t maxPageCount;
 

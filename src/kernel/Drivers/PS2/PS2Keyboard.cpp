@@ -94,7 +94,7 @@ namespace PS2
          0 , ' '
     };
 
-    void keyboardHandler(Registers* registers)
+    void _no_stack_trace keyboardHandler(Registers* registers)
     {
         // get scan code(Set 1)
         uint8_t scanCode = x86_inb(0x60);

@@ -5,7 +5,7 @@
 
 IRQHandler irq_handlers[16];
 
-void _default_irq_handler(Registers* registers)
+void _no_stack_trace _default_irq_handler(Registers* registers)
 {
     int irq = registers->interrupt - REMAP_PIC_OFFSET;
 

@@ -1,6 +1,7 @@
 #include "EHCI.hpp"
 
 #include <std/stdio.h>
+#include <Drivers/PIT.h>
 
 namespace EHCI
 {
@@ -21,16 +22,21 @@ namespace EHCI
         uint32_t intr;
         uint32_t frameIndex;
         uint32_t segementSelector4G;
-        uint32_t framListBaseAddress;
-        uint32_t nextAsyncListAddress;
+        uint32_t periodicListBaseAddress;
+        uint32_t asyncListAddress;
     }_packed;
 
     void init_ehci_device(PCI::FunctionInfo device)
     {
-        void* memory_mapped_io = PCI::initializeBAR(device, 0);
+        uint32_t BAR0 = reinterpret_cast<uint32_t>(PCI::initializeBAR(device, 0));
 
-        CapabilityRegister* capRegister = reinterpret_cast<CapabilityRegister*>(memory_mapped_io);
-        OperationalRegister* opRegister = reinterpret_cast<OperationalRegister*>(memory_mapped_io);
+        volatile CapabilityRegister* capRegister = reinterpret_cast<CapabilityRegister*>(BAR0);
+        volatile OperationalRegister* opRegister = reinterpret_cast<OperationalRegister*>(BAR0 + capRegister->size);
+
+        // stop the usb transaction
+        opRegister->command &= ~1;
+
+        PIT_sleep(1);
 
         ;
     }

@@ -15,6 +15,6 @@ typedef void (*ISRHandler)(Registers* registers);
 
 void i686_init_isr();
 
-void i686_dump_registers(Registers* registers);
+void _no_stack_trace i686_dump_registers(Registers* registers);
 
 void i686_set_isr(uint8_t isr_vector, ISRHandler isr);
