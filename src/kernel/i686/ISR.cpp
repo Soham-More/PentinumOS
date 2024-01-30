@@ -2,6 +2,7 @@
 
 #include <std/stdio.h>
 #include <std/logger.h>
+#include <System/Stack.hpp>
 #include "isr_gen.h"
 #include "IDT.h"
 
@@ -44,7 +45,7 @@ static const char* const _ISR_Exceptions[] = {
     ""
 };
 
-void i686_dump_registers(Registers* registers)
+void _no_stack_trace i686_dump_registers(Registers* registers)
 {
     log_info("Registers: \n");
     _PRINT_REGISTER(eax);
@@ -68,7 +69,7 @@ void i686_dump_registers(Registers* registers)
     _PRINT_REGISTER(eflags);
 }
 
-_export void _asmcall _default_isr_handler(Registers* registers)
+_export void _asmcall _no_stack_trace _default_isr_handler(Registers* registers)
 {
     if(isrHandlers[registers->interrupt] != nullptr)
     {
@@ -79,6 +80,8 @@ _export void _asmcall _default_isr_handler(Registers* registers)
         log_critical("\nKERNEL PANIC: Unhandled Interrupt %u: %s\n\t CPU Error Code: %u\n", registers->interrupt, _ISR_Exceptions[registers->interrupt], registers->error);
 
         i686_dump_registers(registers);
+
+        sys::printStackTrace();
 
         __asm__("hlt");
     }

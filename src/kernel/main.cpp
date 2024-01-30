@@ -15,6 +15,7 @@
 #include <std/logger.h>
 #include <std/vector.hpp>
 #include <Bus/USB/EHCI/EHCI.hpp>
+#include <System/Stack.hpp>
 
 _import void _init();
 
@@ -70,6 +71,8 @@ _export void start(KernelInfo kernelInfo)
 {
 	kernel_init();
 
+	sys::beginStackTrace(reinterpret_cast<void*>(start));
+
 	sys::initialisePaging(*kernelInfo.pagingInfo);
 
 	// initalise memory manager
@@ -80,8 +83,6 @@ _export void start(KernelInfo kernelInfo)
 	PCI::enumeratePCIBus();
 
 	PCI::prettyPrintDevices();
-
-	PIC_irq_mask(0);
 
 	// get USB device
 	PCI::FunctionInfo USB_storage = PCI::getFunction(0x0C, 0x03);

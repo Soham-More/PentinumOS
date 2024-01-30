@@ -86,7 +86,7 @@ uint32_t loadNextCluster(uint16_t sector_handle, uint16_t currentCluster)
         }
     }
     
-    //remember to ignore the high 4 bits.
+    // ignore the high 4 bits.
     uint32_t table_value = FAT32_table[ent_offset];
     table_value &= 0x0FFFFFFF;
 
