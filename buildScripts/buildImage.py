@@ -215,7 +215,7 @@ def write_stage2(fileVBR: str, offset: int):
 # uses parted to make a MBR partition
 # write FAT32 to image
 def init_image(reserved_sectors: int):
-    check_call(["./buildScripts/part.sh", imageFilePath, "16KiB", "-1s", str(reserved_sectors), "ROS"])
+    check_call(["./buildScripts/part.sh", imageFilePath, "16KiB", "-1s", str(reserved_sectors), "ROS", sys.argv[7]])
 
 # make disk image
 def build_disk():

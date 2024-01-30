@@ -17,7 +17,7 @@ dbuild:
 floppy_image: $(BUILD_DIR)/image.img
 
 $(BUILD_DIR)/image.img: bootloader kernel mount_dir
-	@$(IMG_BUILDER) $@ 64 MiB build/MBR.bin build/VBR.bin build/stage2.bin
+	@$(IMG_BUILDER) $@ 64 MiB build/MBR.bin build/VBR.bin build/stage2.bin build/device
 
 	@$(MAKE) -f $(IMG_INSTALLER) BUILD_DIR=$(abspath $(BUILD_DIR)) ROOT_FILES=$(abspath $(ROOT_FILES)) IMG_MOUNT=$(abspath $(IMG_MOUNT)) IMAGE_FILE=$@ install
 

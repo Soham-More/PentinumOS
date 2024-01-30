@@ -8,6 +8,6 @@
 
 parted -s $1 -- mklabel msdos
 parted -s $1 -- mkpart primary fat32 $2 $3
-losetup --partscan --find --show $1
-mkfs.fat /dev/loop0p1 -F 32 -R $4 -n $5
-losetup -d /dev/loop0
+losetup --partscan --find --show $1 > $6
+mkfs.fat $(cat $6)p1 -F 32 -R $4 -n $5
+losetup -d $(cat $6)
