@@ -7,6 +7,9 @@
 
 namespace PCI
 {
+    struct BARInfo;
+    enum class BAR_Type;
+
     enum class Command : uint16_t
     {
         IO_SPACE                = 0x001,
@@ -37,15 +40,10 @@ namespace PCI
         DETECTED_PARITY_ERROR = 0x4000,
     };
 
-    struct FunctionInfo;
-    typedef uint32_t(*pci_device_init_driver)(FunctionInfo);
-
-    struct FunctionInfo
+    struct PCI_DEVICE
     {
-        // which device?
         uint8_t bus;
         uint8_t device_no;
-
         uint8_t function;
 
         uint16_t vendorID;
@@ -54,96 +52,28 @@ namespace PCI
 
         uint8_t classCode;
         uint8_t subClass;
-
         uint8_t progIF;
+
+        uint32_t portBase;
+        uint32_t size;
 
         uint8_t headerType;
 
-        pci_device_init_driver pciDeviceInit;
+        BAR_Type type;
 
         bool isValid();
 
-        // returns true if success
-        bool self_test();
+        template<class T>
+        T configRead(uint8_t register_offset);
 
-        // gets capability pointer
-        uint8_t getCapabilityPointer();
+        template<class T>
+        void configWrite(uint8_t register_offset, T value);
 
-        // init pci device by calling the driver
-        uint32_t init();
+        void* allocBAR(uint8_t barID, bool isFrameBuffer = false);
     };
-    struct DeviceInfo
-    {
-        uint8_t bus;
-        uint8_t device_no;
-
-        bool isMultiFunction;
-
-        FunctionInfo functions[8];
-
-        bool isValid();
-    };
-
-    struct GENERAL_HEADER
-    {
-        uint32_t BAR0;
-        uint32_t BAR1;
-        uint32_t BAR2;
-        uint32_t BAR3;
-        uint32_t BAR4;
-        uint32_t BAR5;
-        uint32_t cardbusCISPointer;
-        uint16_t subSystemVendorID;
-        uint16_t subSystemID;
-        uint32_t expansionROMbase;
-        uint8_t  capabilityPointer;
-        uint8_t  reserved_u8;
-        uint16_t reserved_u16;
-        uint32_t reserved_u32;
-        uint8_t  int_line;
-        uint8_t  int_pin;
-        uint8_t  minGrant;
-        uint8_t  maxLatency;
-    } _packed;
-
-    // register_offset: offset of register in bytes
-    // Config registers read write operations
-
-    uint32_t configReadRegister(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t _register);
-
-    uint32_t configReadDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
-    uint16_t configReadWord (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
-    uint8_t  configReadByte (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
-
-    uint32_t configReadDword(FunctionInfo& function, uint8_t register_offset);
-    uint16_t configReadWord (FunctionInfo& function, uint8_t register_offset);
-    uint8_t  configReadByte (FunctionInfo& function, uint8_t register_offset);
-
-    void configWriteDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint32_t value);
-    void configWriteWord (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint16_t value);
-    void configWriteByte (uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint8_t value);
-
-    void configWriteDword(FunctionInfo& function, uint8_t register_offset, uint32_t value);
-    void configWriteWord (FunctionInfo& function, uint8_t register_offset, uint16_t value);
-    void configWriteByte (FunctionInfo& function, uint8_t register_offset, uint8_t  value);
-
-    // get devices
-
-    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
-    DeviceInfo getDevice(uint8_t bus, uint8_t device);
-
-    // Bus enumeration related
-
-    void checkFunction(DeviceInfo& deviceInfo, uint8_t function);
-    void checkDevice(DeviceInfo& deviceInfo);
-    void checkBus(uint8_t bus);
-
+    
     void enumeratePCIBus();
     void prettyPrintDevices();
 
-    // initialises and returns BAR location
-    void* initializeBAR(FunctionInfo& function, uint8_t bar, bool isFrameBuffer = false);
-
-    // get function which matches the given class code and subClass
-    FunctionInfo getFunction(uint8_t classCode, uint8_t subClass);
+    PCI_DEVICE* getPCIDevice(uint8_t classCode, uint8_t subClass);
 }

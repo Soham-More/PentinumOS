@@ -26,9 +26,9 @@ namespace EHCI
         uint32_t asyncListAddress;
     }_packed;
 
-    void init_ehci_device(PCI::FunctionInfo device)
+    void init_ehci_device(PCI::PCI_DEVICE* device)
     {
-        uint32_t BAR0 = reinterpret_cast<uint32_t>(PCI::initializeBAR(device, 0));
+        uint32_t BAR0 = reinterpret_cast<uint32_t>(device->allocBAR(0));
 
         volatile CapabilityRegister* capRegister = reinterpret_cast<CapabilityRegister*>(BAR0);
         volatile OperationalRegister* opRegister = reinterpret_cast<OperationalRegister*>(BAR0 + capRegister->size);

@@ -64,6 +64,8 @@ void kernel_init()
 	printf("ok\n");
 }
 
+// https://github.com/Remco123/CactusOS/blob/master/kernel/src/system/components/pci.cpp
+
 // export "C" to prevent g++ from
 // mangling this function's name
 // and confusing the linker
@@ -85,7 +87,7 @@ _export void start(KernelInfo kernelInfo)
 	PCI::prettyPrintDevices();
 
 	// get USB device
-	PCI::FunctionInfo USB_storage = PCI::getFunction(0x0C, 0x03);
+	PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
 
 	EHCI::init_ehci_device(USB_storage);
 

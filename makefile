@@ -23,6 +23,8 @@ $(BUILD_DIR)/image.img: bootloader kernel mount_dir
 
 	@chmod a+rwx build/image.img
 
+	@losetup -a
+
 mount_dir:
 	@mkdir -p $(IMG_MOUNT)
 

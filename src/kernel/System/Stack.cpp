@@ -5,6 +5,7 @@
 bool traceStack = false;
 uint32_t* stack;
 uint32_t stackPosition;
+uint32_t maxStackPosition;
 
 void _no_stack_trace __cyg_profile_func_enter (void *this_fn, void *call_site)
 {
@@ -25,6 +26,8 @@ namespace sys
     {
         traceStack = true;
 
+        maxStackPosition = 0;
+
         stack = reinterpret_cast<uint32_t*>(alloc_pages_aligned(MAX_STACK_DEPTH * sizeof(uint32_t), MAX_STACK_DEPTH  * sizeof(uint32_t)));
     
         // first stack value is entry point
@@ -35,7 +38,7 @@ namespace sys
     {
         traceStack = false;
 
-        log_info("\nStack Trace: \n");
+        log_info("\nStack Trace[%d]: \n", stackPosition);
 
         for(uint32_t i = stackPosition; i > 0; i--)
         {

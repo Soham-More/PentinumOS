@@ -3,7 +3,7 @@
 #include <includes.h>
 #include <Bus/PCI/PCI.hpp>
 
-namespace EHCI
+namespace UHCI
 {
-    void init_ehci_device(PCI::PCI_DEVICE* device);
+    void init_uhci_device(PCI::PCI_DEVICE* device);
 }

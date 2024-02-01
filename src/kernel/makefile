@@ -1,10 +1,10 @@
 # Stage 2 makefile
 
 TARGET_ASMFLAGS += -f elf
-TARGET_CFLAGS += -ffreestanding
+TARGET_CFLAGS += -ffreestanding -finstrument-functions
 TARGET_LIBS += -lgcc
 TARGET_LINKFLAGS += -T linker.ld -nostdlib
-TARGET_CPPFLAGS += -ffreestanding -D _novscode -I $(WORKSPACE_DIR)/src/kernel/ -g #-nostdlib
+TARGET_CPPFLAGS += -ffreestanding -finstrument-functions -D _novscode -I $(WORKSPACE_DIR)/src/kernel/ -g #-nostdlib
 
 TARGET_LD = $(TARGET)-g++
 

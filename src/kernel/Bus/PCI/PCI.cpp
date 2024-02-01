@@ -12,29 +12,43 @@ namespace PCI
     const uint16_t CONFIG_ADDRESS = 0xCF8;
     const uint16_t CONFIG_DATA    = 0xCFC;
 
+    struct DeviceInfo
+    {
+        uint8_t bus;
+        uint8_t device_no;
+
+        bool isMultiFunction;
+
+        PCI_DEVICE functions[8];
+
+        bool isValid() { return functions[0].vendorID != 0xFFFF; }
+    };
+    struct BARInfo
+    {
+        void* address;
+        size_t size;
+        BAR_Type type;
+    };
+    enum class BAR_Type
+    {
+        MEMORY_MAPPED = 0,
+        IO_MAPPED = 1
+    };
+
     static std::vector<DeviceInfo> pciDevices;
 
-    bool FunctionInfo::isValid()
-    {
-        return vendorID != 0xFFFF;
-    }
+    template<> uint8_t PCI_DEVICE::configRead<uint8_t>(uint8_t register_offset);
+    template<> uint16_t PCI_DEVICE::configRead<uint16_t>(uint8_t register_offset);
+    template<> uint32_t PCI_DEVICE::configRead<uint32_t>(uint8_t register_offset);
+    template<> void PCI_DEVICE::configWrite<uint8_t>(uint8_t register_offset, uint8_t value);
+    template<> void PCI_DEVICE::configWrite<uint16_t>(uint8_t register_offset, uint16_t value);
+    template<> void PCI_DEVICE::configWrite<uint32_t>(uint8_t register_offset, uint32_t value);
 
-    uint32_t FunctionInfo::init()
-    {
-        if(pciDeviceInit == nullptr) return PCI_INIT_NO_DRIVER;
-
-        return pciDeviceInit(*this);
-    }
-
-    bool DeviceInfo::isValid()
-    {
-        return functions[0].vendorID != 0xFFFF;
-    }
-
-    uint32_t configReadRegister(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t _register)
-    {
-        return configReadDword(bus_no, device_no, function, _register << 2);
-    }
+    PCI_DEVICE getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function);
+    DeviceInfo getDevice(uint8_t bus, uint8_t device);
+    void checkFunction(DeviceInfo& deviceInfo, uint8_t function);
+    void checkDevice(DeviceInfo& deviceInfo);
+    void checkBus(uint8_t bus);
 
     uint32_t configReadDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset)
     {
@@ -70,19 +84,6 @@ namespace PCI
         return (dword >> (dword_offset * 8)) & 0xFF;
     }
 
-    uint32_t configReadDword(FunctionInfo& function, uint8_t register_offset)
-    {
-        return configReadDword(function.bus, function.device_no, function.function, register_offset);
-    }
-    uint16_t configReadWord(FunctionInfo& function, uint8_t register_offset)
-    {
-        return configReadWord(function.bus, function.device_no, function.function, register_offset);
-    }
-    uint8_t configReadByte(FunctionInfo& function, uint8_t register_offset)
-    {
-        return configReadByte(function.bus, function.device_no, function.function, register_offset);
-    }
-
     void configWriteDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint32_t value)
     {
         uint32_t lbus = bus_no;
@@ -114,22 +115,9 @@ namespace PCI
         configWriteWord(bus_no, device_no, function, register_offset, (curr_value & ~(UINT8_MAX)) | value);
     }
 
-    void configWriteDword(FunctionInfo& function, uint8_t register_offset, uint32_t value)
+    PCI_DEVICE getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function)
     {
-        configWriteDword(function.bus, function.device_no, function.function, register_offset, value);
-    }
-    void configWriteWord (FunctionInfo& function, uint8_t register_offset, uint16_t value)
-    {
-        configWriteWord(function.bus, function.device_no, function.function, register_offset, value);
-    }
-    void configWriteByte (FunctionInfo& function, uint8_t register_offset, uint8_t value)
-    {
-        configWriteByte(function.bus, function.device_no, function.function, register_offset, value);
-    }
-
-    FunctionInfo getDeviceFunction(uint8_t bus, uint8_t device, uint8_t function)
-    {
-        FunctionInfo finfo;
+        PCI_DEVICE finfo;
 
         finfo.function = function;
         finfo.bus = bus;
@@ -148,8 +136,6 @@ namespace PCI
 
             // mask multi function bit
             finfo.headerType = configReadByte(bus, device, function, 0x0E) & (~0x80);
-
-            finfo.pciDeviceInit = nullptr;
         }
 
         return finfo;
@@ -183,7 +169,7 @@ namespace PCI
     {
         uint8_t secondaryBus;
 
-        FunctionInfo& f0 = deviceInfo.functions[0];
+        PCI_DEVICE& f0 = deviceInfo.functions[0];
         
         if ((f0.classCode == 0x6) && (f0.subClass == 0x4))
         {
@@ -252,57 +238,163 @@ namespace PCI
 
         for(uint32_t i = 0; i < pciDevices.size(); i++)
         {
-            FunctionInfo& f0 = pciDevices[i].functions[0];
+            PCI_DEVICE& f0 = pciDevices[i].functions[0];
 
             log_info("\t%3u | %2u     | 0x%2x  | %3u      | 0x%2x    | 0x%4x    | 0x%4x   \n", f0.bus, f0.device_no
                                             , f0.classCode, f0.subClass, f0.progIF, f0.vendorID, f0.deviceID);
         }
     }
 
-    // initialises and returns BARN location
-    void* initializeBAR(FunctionInfo& function, uint8_t bar, bool isFrameBuffer)
+    BARInfo getDeviceBAR(PCI_DEVICE* pciDevice, uint8_t bar)
     {
         uint8_t offset = 0x10 + (bar * 4);
+        PCI_DEVICE& function = *pciDevice;
 
         // preserve BAR Value
-        uint32_t BAR = configReadDword(function, offset);
+        uint32_t BAR = function.configRead<uint32_t>(offset);
 
         uint32_t BAR_size = 0;
 
         // disable memory decode and IO decode
-        uint16_t commandByte = configReadWord(function, 0x04);
+        uint16_t commandByte = function.configRead<uint16_t>(0x04);
         commandByte &= ~(0x03);
-        configWriteWord(function, 0x04, commandByte);
+        function.configWrite(0x04, commandByte);
 
         // write all 1s
-        configWriteDword(function, offset, UINT32_MAX);
+        function.configWrite(offset, UINT32_MAX);
 
-        uint32_t BAR_encoded_size = configReadDword(function, offset);
+        uint32_t sizeMask = function.configRead<uint32_t>(offset);
 
         // if it is 0, it is a memory mapped bar
-        if((BAR_encoded_size & 0x01) == 0)
+        if((sizeMask & 0x01) == 0)
         {
             if((BAR & 0x6) == 0x00)
             {
-                BAR_size = ~(BAR_encoded_size & ~((uint32_t)0xF));
+                BAR_size = ~(sizeMask & ~((uint32_t)0xF));
             }
             // else if it is 16-bit
             else if((BAR & 0x6) == 0x2)
             {
-                BAR_size = ~(BAR_encoded_size & ~((uint16_t)0xF));
+                BAR_size = ~(sizeMask & ~((uint16_t)0xF));
             }
             // else if it is 64-bit
             // currently fails
             else if((BAR & 0x6) == 0x4)
             {
-                log_error("\ERROR: not supported\n\tDetected 64-bit BAR Device: bus:%d, device_no:%f, functionid:%d\n", function.bus, function.device_no, function.function);
+                // enable memory decode and IO decode
+                commandByte = function.configRead<uint16_t>(0x04);
+                commandByte |= 0x03;
+                function.configWrite<uint16_t>(0x04, commandByte);
+
+                log_error("\nERROR: not supported\n\tDetected 64-bit BAR Device: bus:%d, device_no:%f, functionid:%d\n", function.bus, function.device_no, function.function);
+                return BARInfo{nullptr, 0};
+            }
+        }
+        // IO Mapped BAR
+        else
+        {
+            // enable memory decode and IO decode
+            commandByte = function.configRead<uint16_t>(0x04);
+            commandByte |= 0x03;
+            function.configWrite<uint16_t>(0x04, commandByte);
+
+            // restore bar settings
+            function.configWrite(offset, BAR & ~0x3);
+
+            return BARInfo{reinterpret_cast<void*>(BAR & ~0x3), ~(sizeMask & ~3) + 1, BAR_Type::IO_MAPPED};
+        }
+
+        // enable memory decode and IO decode
+        commandByte = function.configRead<uint16_t>(0x04);
+        commandByte |= 0x03;
+        function.configWrite<uint16_t>(0x04, commandByte);
+
+        function.configWrite(offset, BAR);
+
+        return BARInfo{reinterpret_cast<void*>(BAR & ~(0xF)), ~(sizeMask & ~0xF), BAR_Type::MEMORY_MAPPED};
+    }
+
+    template<> uint8_t PCI_DEVICE::configRead<uint8_t>(uint8_t register_offset)
+    {
+        return configReadByte(bus, device_no, function, register_offset);
+    }
+    template<> uint16_t PCI_DEVICE::configRead<uint16_t>(uint8_t register_offset)
+    {
+        return configReadWord(bus, device_no, function, register_offset);
+    }
+    template<> uint32_t PCI_DEVICE::configRead<uint32_t>(uint8_t register_offset)
+    {
+        return configReadDword(bus, device_no, function, register_offset);
+    }
+
+    template<> void PCI_DEVICE::configWrite<uint8_t>(uint8_t register_offset, uint8_t value)
+    {
+        configWriteByte(bus, device_no, function, register_offset, value);
+    }
+    template<> void PCI_DEVICE::configWrite<uint16_t>(uint8_t register_offset, uint16_t value)
+    {
+        configWriteWord(bus, device_no, function, register_offset, value);
+    }
+    template<> void PCI_DEVICE::configWrite<uint32_t>(uint8_t register_offset, uint32_t value)
+    {
+        configWriteDword(bus, device_no, function, register_offset, value);
+    }
+
+    bool PCI_DEVICE::isValid()
+    {
+        return vendorID != 0xFFFF;
+    }
+    void* PCI_DEVICE::allocBAR(uint8_t barID, bool isFrameBuffer)
+    {
+        uint8_t offset = 0x10 + (barID * 4);
+
+        // preserve BAR Value
+        uint32_t BAR = configRead<uint32_t>(offset);
+
+        uint32_t BAR_size = 0;
+
+        // disable memory decode and IO decode
+        uint16_t commandByte = configRead<uint16_t>(0x04);
+        commandByte &= ~(0x03);
+        configWrite(0x04, commandByte);
+
+        // write all 1s
+        configWrite(offset, UINT32_MAX);
+
+        uint32_t sizeMask = configRead<uint32_t>(offset);
+
+        // if it is 0, it is a memory mapped bar
+        if((sizeMask & 0x01) == 0)
+        {
+            if((BAR & 0x6) == 0x00)
+            {
+                BAR_size = ~(sizeMask & ~((uint32_t)0xF));
+            }
+            // else if it is 16-bit
+            else if((BAR & 0x6) == 0x2)
+            {
+                BAR_size = ~(sizeMask & ~((uint16_t)0xF));
+            }
+            // else if it is 64-bit
+            // currently fails
+            else if((BAR & 0x6) == 0x4)
+            {
+                // enable memory decode and IO decode
+                commandByte = configRead<uint16_t>(0x04);
+                commandByte |= 0x03;
+                configWrite<uint16_t>(0x04, commandByte);
+
+                log_error("\ERROR: not supported\n\tDetected 64-bit BAR Device: bus:%d, device_no:%f, functionid:%d\n", bus, device_no, function);
                 return nullptr;
             }
         }
         // IO Mapped BAR
         else
         {
-            // TODO
+            // restore bar settings
+            configWrite(offset, BAR & ~0x3);
+
+            return nullptr;
         }
         
         // now allocate it some memory
@@ -331,40 +423,26 @@ namespace PCI
         // restore bar settings
         new_bar |= BAR & 0xF;
 
-        configWriteDword(function, offset, new_bar);
+        configWrite(offset, new_bar);
 
         // enable memory decode and IO decode
-        commandByte = configReadWord(function, 0x04);
+        commandByte = configRead<uint16_t>(0x04);
         commandByte |= 0x03;
-        configWriteWord(function, 0x04, commandByte);
+        configWrite<uint16_t>(0x04, commandByte);
 
-        uint32_t read_word = configReadDword(function, offset);
+        uint32_t read_word = configRead<uint32_t>(offset);
 
         return reinterpret_cast<void*>(new_bar & ~(0xF));
     }
-
-    void initDevices()
+    PCI_DEVICE* getPCIDevice(uint8_t classCode, uint8_t subClass)
     {
-        for(size_t i = 0; i < pciDevices.size(); i++)
-        {
-            pciDevices[i].functions[0].init();
+        PCI_DEVICE* pciDevice = nullptr;
 
-            if(!pciDevices[i].isMultiFunction) continue;
-
-            for(size_t i = 1; i < 8; i++)
-            {
-                pciDevices[i].functions[i].init();
-            }
-        }
-    }
-
-    FunctionInfo getFunction(uint8_t classCode, uint8_t subClass)
-    {
         for(size_t i = 0; i < pciDevices.size(); i++)
         {
             if(pciDevices[i].functions[0].classCode == classCode && pciDevices[i].functions[0].subClass == subClass)
             {
-                return pciDevices[i].functions[0];
+                pciDevice = &pciDevices[i].functions[0];
             }
 
             if(!pciDevices[i].isMultiFunction) continue;
@@ -373,14 +451,21 @@ namespace PCI
             {
                 if(pciDevices[i].functions[j].classCode == classCode && pciDevices[i].functions[j].subClass == subClass)
                 {
-                    return pciDevices[i].functions[j];
+                    pciDevice = &pciDevices[i].functions[j];
                 }
             }
         }
+        if(!pciDevice) return nullptr;
 
-        FunctionInfo f;
-        f.vendorID = 0xFFFF;
+        for(size_t i = 0; i < 6; i++)
+        {
+            BARInfo bInfo = getDeviceBAR(pciDevice, i);
+            if(bInfo.type == BAR_Type::IO_MAPPED)
+            {
+                pciDevice->portBase = reinterpret_cast<uint32_t>(bInfo.address);
+            }
+        }
 
-        return f;
+        return pciDevice;
     }
 }
