@@ -10,6 +10,9 @@
 #define MAX_STACK_DEPTH 4096
 
 typedef uint32_t size_t;
+typedef uint32_t ptr_t;
+
+#define ptr_cast reinterpret_cast<ptr_t>
 
 #ifdef _novscode
 #define _export extern "C"

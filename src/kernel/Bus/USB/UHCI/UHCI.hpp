@@ -5,5 +5,5 @@
 
 namespace UHCI
 {
-    void init_uhci_device(PCI::PCI_DEVICE* device);
+    bool init_uhci_controller(PCI::PCI_DEVICE* device);
 }

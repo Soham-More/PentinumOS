@@ -230,7 +230,6 @@ namespace PCI
             }
         }
     }
-
     void prettyPrintDevices()
     {
         log_info("PCI Devices:\n");
@@ -433,6 +432,14 @@ namespace PCI
         uint32_t read_word = configRead<uint32_t>(offset);
 
         return reinterpret_cast<void*>(new_bar & ~(0xF));
+    }
+    void PCI_DEVICE::outw(uint16_t register_offset, uint16_t value)
+    {
+        x86_outw(portBase + register_offset, value);
+    }
+    uint16_t PCI_DEVICE::inw(uint16_t register_offset)
+    {
+        return x86_inw(register_offset);
     }
     PCI_DEVICE* getPCIDevice(uint8_t classCode, uint8_t subClass)
     {

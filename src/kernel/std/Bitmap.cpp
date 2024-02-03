@@ -32,6 +32,12 @@ namespace std
 
     size_t Bitmap::find_false()
     {
+        if(cachedFalseBit)
+        {
+            return cached_FalseBit;
+            cachedFalseBit = false;
+        }
+
         for(size_t i = 0; i < bitmap_size; i++)
         {
             uint8_t value = bitmap[i];
@@ -57,8 +63,10 @@ namespace std
         return Bitmap::npos;
     }
 
-    size_t Bitmap::find_false_bits(size_t n)
+    size_t Bitmap::find_false_bits(size_t n, bool cache)
     {
+        cachedFalseBit = cache;
+
         for(size_t i = 0; i < bitmap_size; i++)
         {
             uint8_t value = bitmap[i];
@@ -73,6 +81,12 @@ namespace std
                     // the >> will givew a even number
                     if((value >> offset) % 2 == 0)
                     {
+                        if(cache)
+                        {
+                            cached_FalseBit = i * 8 + offset;
+                            cache = false;
+                        }
+
                         size_t loc = i * 8 + offset;
 
                         for(size_t j = 0; j < n; j++)
@@ -93,6 +107,8 @@ namespace std
             nextByte:
             ;
         }
+
+        cached_FalseBit = Bitmap::npos;
 
         return Bitmap::npos;
     }

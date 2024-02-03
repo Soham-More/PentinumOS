@@ -2,9 +2,6 @@
 
 #include <includes.h>
 
-#define PCI_INIT_OK 0
-#define PCI_INIT_NO_DRIVER 1
-
 namespace PCI
 {
     struct BARInfo;
@@ -70,6 +67,9 @@ namespace PCI
         void configWrite(uint8_t register_offset, T value);
 
         void* allocBAR(uint8_t barID, bool isFrameBuffer = false);
+
+        void outw(uint16_t register_offset, uint16_t value);
+        uint16_t inw(uint16_t register_offset);
     };
     
     void enumeratePCIBus();

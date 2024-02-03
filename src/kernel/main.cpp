@@ -17,6 +17,8 @@
 #include <Bus/USB/EHCI/EHCI.hpp>
 #include <System/Stack.hpp>
 
+#include <std/Heap/heap.hpp>
+
 _import void _init();
 
 extern "C" void __cxa_pure_virtual(){;}
@@ -86,10 +88,22 @@ _export void start(KernelInfo kernelInfo)
 
 	PCI::prettyPrintDevices();
 
-	// get USB device
-	PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
+	std::initHeap();
 
-	EHCI::init_ehci_device(USB_storage);
+	// TODO: generate an exception when nullptr is accessed.
+
+	void* ptrA = std::mallocAligned(0x1000, 12);
+	void* ptrB = std::mallocAligned(0x20, 5);
+	std::free(ptrA);
+	void* ptrE = std::mallocAligned(0x20, 5);
+	std::free(ptrB);
+	
+	void* ptrC = std::mallocAligned(0x20, 5);
+	void* ptrD = std::mallocAligned(0x20, 5);
+
+	// get USB device
+	//PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
+	//EHCI::init_ehci_device(USB_storage);
 
 	for (;;);
 }

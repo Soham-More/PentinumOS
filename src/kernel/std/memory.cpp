@@ -65,6 +65,8 @@ typedef struct
 
 e820_MemoryMap memoryMap;
 
+uint32_t allocatorStatus;
+
 void mem_mark_free(uint32_t begin, uint32_t size)
 {
     uint32_t beginPage = DivRoundUp(begin, PAGE_SIZE);
@@ -130,6 +132,9 @@ void mem_init(KernelInfo& kernelInfo)
     kernelInfo.kernelMap = alloc_cp((void*)kernelInfo.kernelMap, sizeof(uint32_t) + kernelMap.entryCount * sizeof(KernelMapEntry));
 
     kernelInfo.pagingInfo = (PagingInfo*)alloc_cp((void*)kernelInfo.pagingInfo, sizeof(PagingInfo));
+
+    // no error
+    clearAllocatorStatus();
 }
 
 void* alloc_page()
@@ -139,6 +144,8 @@ void* alloc_page()
     // no memory available
     if(freePage == std::Bitmap::npos)
     {
+        allocatorStatus |= ALLOC_NO_FREE_SPACE;
+
         return nullptr;
     }
 
@@ -148,11 +155,14 @@ void* alloc_page()
 }
 void* alloc_pages(size_t count)
 {
-    size_t freePage = pagesAllocated.find_false_bits(count);
+    size_t freePage = pagesAllocated.find_false_bits(count, true);
 
     // no memory available
     if(freePage == std::Bitmap::npos)
     {
+        if(pagesAllocated.find_false() == std::Bitmap::npos) allocatorStatus |= ALLOC_NO_FREE_SPACE;
+        else allocatorStatus |= ALLOC_REQ_SIZE_NAVAIL;
+
         return nullptr;
     }
 
@@ -284,4 +294,13 @@ void free_pages(void* mem, size_t count)
 
     // free pages
     pagesAllocated.setBits(loc, count, false);
+}
+
+uint32_t getAllocatorStatus()
+{
+    return allocatorStatus;
+}
+void clearAllocatorStatus()
+{
+    allocatorStatus = 0;
 }

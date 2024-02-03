@@ -10,6 +10,9 @@ namespace std
             size_t bitmap_size = 0;   // size in bytes
             size_t bitmap_count = 0;
             uint8_t* bitmap = nullptr;
+
+            bool cachedFalseBit = false;
+            bool cached_FalseBit = false;
         
         public:
             static const size_t npos = 0;
@@ -26,7 +29,7 @@ namespace std
             size_t find_false();
 
             // finds n consecutive bits which are false
-            size_t find_false_bits(uint32_t n);
+            size_t find_false_bits(uint32_t n, bool cache = false);
 
             size_t size();
 
