@@ -98,8 +98,6 @@ _export void start(KernelInfo kernelInfo)
 
 	// TODO: generate an exception when nullptr is accessed.
 
-	;
-
 	//void* ptrA = std::mallocAligned(0x1000, 12);
 	//void* ptrB = std::mallocAligned(0x20, 5);
 	//std::free(ptrA);
@@ -108,15 +106,11 @@ _export void start(KernelInfo kernelInfo)
 	//void* ptrC = std::mallocAligned(0x20, 5);
 	//void* ptrD = std::mallocAligned(0x20, 5);
 
-	// get USB device
-	//PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
-	//EHCI::init_ehci_device(USB_storage);
+	// get USB UHCI controller
+	USB::UHCIController controller(PCI::getPCIDevice(0x0C, 0x03));
 
-	for(int i = 0; i < 60; i++)
-	{
-		PIT_sleep(1000);
-		printf("%d seconds passed\n", i + 1);
-	}
+	controller.Init();
+	controller.Setup();
 
 	for (;;);
 }

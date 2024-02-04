@@ -13,8 +13,8 @@ namespace USB
         public:
             UHCIController(PCI::PCI_DEVICE* device);
 
-            bool Init(PCI::PCI_DEVICE* device);
+            bool Init();
 
-            void Setup(PCI::PCI_DEVICE* device);
+            void Setup();
     };
 }

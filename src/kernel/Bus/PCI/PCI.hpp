@@ -37,6 +37,9 @@ namespace PCI
         DETECTED_PARITY_ERROR = 0x4000,
     };
 
+    uint32_t configReadDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset);
+    void configWriteDword(uint8_t bus_no, uint8_t device_no, uint8_t function, uint8_t register_offset, uint32_t value);
+
     struct PCI_DEVICE
     {
         uint8_t bus;
@@ -60,11 +63,25 @@ namespace PCI
 
         bool isValid();
 
+        // WARNING: use only with unsigned ints.
         template<class T>
-        T configRead(uint8_t register_offset);
+        T configRead(uint8_t register_offset)
+        {
+            uint8_t offset = register_offset & (0x4 - sizeof(T));
 
+            uint32_t dword = configReadDword(bus, device_no, function, register_offset);
+
+            return (dword >> (offset * 8)) & (T)-1;
+        }
+
+        // WARNING: use only with unsigned ints.
         template<class T>
-        void configWrite(uint8_t register_offset, T value);
+        void configWrite(uint8_t register_offset, T value)
+        {
+            // preserve other bits
+            uint32_t curr_value = configReadDword(bus, device_no, function, register_offset);
+            configWriteDword(bus, device_no, function, register_offset, (curr_value & ~((T)-1)) | value);
+        }
 
         void* allocBAR(uint8_t barID, bool isFrameBuffer = false);
 
@@ -74,6 +91,13 @@ namespace PCI
         void outw(uint16_t register_offset, uint16_t value);
         uint16_t inw(uint16_t register_offset);
     };
+
+    //template<> uint8_t PCI_DEVICE::configRead<uint8_t>(uint8_t register_offset);
+    //template<> uint16_t PCI_DEVICE::configRead<uint16_t>(uint8_t register_offset);
+    //template<> uint32_t PCI_DEVICE::configRead<uint32_t>(uint8_t register_offset);
+    //template<> void PCI_DEVICE::configWrite<uint8_t>(uint8_t register_offset, uint8_t value);
+    //template<> void PCI_DEVICE::configWrite<uint16_t>(uint8_t register_offset, uint16_t value);
+    //template<> void PCI_DEVICE::configWrite<uint32_t>(uint8_t register_offset, uint32_t value);
     
     void enumeratePCIBus();
     void prettyPrintDevices();
