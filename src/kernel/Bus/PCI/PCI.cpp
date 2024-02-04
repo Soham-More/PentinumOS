@@ -433,6 +433,14 @@ namespace PCI
 
         return reinterpret_cast<void*>(new_bar & ~(0xF));
     }
+    void PCI_DEVICE::outb(uint16_t register_offset, uint8_t value)
+    {
+        x86_outw(portBase + register_offset, value);
+    }
+    uint8_t PCI_DEVICE::inb(uint16_t register_offset)
+    {
+        return x86_inw(register_offset);
+    }
     void PCI_DEVICE::outw(uint16_t register_offset, uint16_t value)
     {
         x86_outw(portBase + register_offset, value);

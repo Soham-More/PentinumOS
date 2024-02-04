@@ -23,6 +23,9 @@ namespace sys
     // maps n pages at vaddress to n pages at paddress
     void mapVirtualPages(uint32_t vaddress, uint32_t paddress, uint32_t pages, uint32_t flags);
 
+    // convert a pointer to it's physical location
+    ptr_t getPhysicalLocation(void* vaddress);
+
     // sets flags of page
     void setFlagsPage(uint32_t vaddress, uint32_t flags);
 

@@ -65,6 +65,25 @@ namespace sys
         x86_flushTLB();
     }
 
+    // convert a pointer to it's physical location
+    ptr_t getPhysicalLocation(void* vaddress)
+    {
+        ptr_t vaddr = ptr_cast(vaddress);
+
+        // align adresses to 4KiB
+        ptr_t vaddrPage = vaddr & 0xFFFFF000;
+
+        ptr_t indexPD = (vaddrPage) >> 22;
+        ptr_t indexPT = (vaddrPage >> 12) & 0x03FF;
+
+        ptr_t* pageTable = (ptr_t*)((char*)g_pagingInfo.pageTableArray + (PAGE_SIZE * indexPD));
+
+        // get PT entry
+        ptr_t paddrPage = pageTable[indexPT] & 0xFFFFF000;
+
+        return paddrPage + vaddr & 0xFFF;
+    }
+
     // sets flags of page
     void setFlagsPage(uint32_t vaddress, uint32_t flags)
     {

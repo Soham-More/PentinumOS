@@ -14,9 +14,8 @@
 #include <System/Boot.h>
 #include <std/logger.h>
 #include <std/vector.hpp>
-#include <Bus/USB/EHCI/EHCI.hpp>
+#include <Bus/USB/UHCI/UHCI.hpp>
 #include <System/Stack.hpp>
-
 #include <std/Heap/heap.hpp>
 
 _import void _init();
@@ -51,6 +50,13 @@ void kernel_init()
 	printf("loading default isrs...  ");
 	i686_init_isr();
 	printf("ok\n");
+
+	i686_disable_interrupt(0);
+
+	uint16_t divider = PIT_MAX_FREQ / 16500;
+
+    x86_outb(0x40, (uint8_t)divider);
+    x86_outb(0x40, (uint8_t)(divider >> 8));
 
 	printf("loading IRQs...  ");
 	init_irq();
@@ -92,6 +98,8 @@ _export void start(KernelInfo kernelInfo)
 
 	// TODO: generate an exception when nullptr is accessed.
 
+	;
+
 	//void* ptrA = std::mallocAligned(0x1000, 12);
 	//void* ptrB = std::mallocAligned(0x20, 5);
 	//std::free(ptrA);
@@ -103,6 +111,12 @@ _export void start(KernelInfo kernelInfo)
 	// get USB device
 	//PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
 	//EHCI::init_ehci_device(USB_storage);
+
+	for(int i = 0; i < 60; i++)
+	{
+		PIT_sleep(1000);
+		printf("%d seconds passed\n", i + 1);
+	}
 
 	for (;;);
 }

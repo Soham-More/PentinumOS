@@ -68,6 +68,9 @@ namespace PCI
 
         void* allocBAR(uint8_t barID, bool isFrameBuffer = false);
 
+        void outb(uint16_t register_offset, uint8_t value);
+        uint8_t inb(uint16_t register_offset);
+
         void outw(uint16_t register_offset, uint16_t value);
         uint16_t inw(uint16_t register_offset);
     };

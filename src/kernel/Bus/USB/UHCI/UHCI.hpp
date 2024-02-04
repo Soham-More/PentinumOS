@@ -3,7 +3,18 @@
 #include <includes.h>
 #include <Bus/PCI/PCI.hpp>
 
-namespace UHCI
+namespace USB
 {
-    bool init_uhci_controller(PCI::PCI_DEVICE* device);
+    class UHCIController
+    {
+        private:
+            PCI::PCI_DEVICE* uhciController;
+
+        public:
+            UHCIController(PCI::PCI_DEVICE* device);
+
+            bool Init(PCI::PCI_DEVICE* device);
+
+            void Setup(PCI::PCI_DEVICE* device);
+    };
 }
