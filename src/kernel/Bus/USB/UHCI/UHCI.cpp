@@ -3,6 +3,7 @@
 #include <std/stdio.h>
 #include <Drivers/PIT.h>
 #include <i686/x86.h>
+#include <std/Heap/heap.hpp>
 
 #define GLOBAL_RESET_COUNT 5
 
@@ -34,14 +35,8 @@ namespace UHCI
         uint8_t  portsc2;
     }_packed;
 
-    bool init_uhci_controller(PCI::PCI_DEVICE* device)
+    void globalResetController(PCI::PCI_DEVICE* device)
     {
-        // enable bus matering
-        device->configWrite<uint8_t>(0x4, 0x5);
-
-        // disable all interrupts
-        device->outw(UHCI_INTR, 0x0);
-
         // reset controller
         for(int i = 0; i < GLOBAL_RESET_COUNT; i++)
         {
@@ -49,11 +44,25 @@ namespace UHCI
             PIT_sleep(11);
             device->outw(UHCI_COMMAND, 0x0);
         }
+    }
+
+    bool init_uhci_controller(PCI::PCI_DEVICE* device)
+    {
+        // TODO: return error if none of the BARs are I/O address
+
+        // enable bus matering
+        device->configWrite<uint8_t>(0x4, 0x5);
+
+        // disable all interrupts
+        device->outw(UHCI_INTR, 0x0);
+
+        globalResetController(device);
 
         // check if cmd register is default
         if(device->inw(UHCI_COMMAND) != 0x0) return false;
         // check if status register is default
         if(device->inw(UHCI_COMMAND) != 0x0) return false;
 
+        ;
     }
 }

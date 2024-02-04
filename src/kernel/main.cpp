@@ -92,14 +92,13 @@ _export void start(KernelInfo kernelInfo)
 
 	// TODO: generate an exception when nullptr is accessed.
 
-	void* ptrA = std::mallocAligned(0x1000, 12);
-	void* ptrB = std::mallocAligned(0x20, 5);
-	std::free(ptrA);
-	void* ptrE = std::mallocAligned(0x20, 5);
-	std::free(ptrB);
-	
-	void* ptrC = std::mallocAligned(0x20, 5);
-	void* ptrD = std::mallocAligned(0x20, 5);
+	//void* ptrA = std::mallocAligned(0x1000, 12);
+	//void* ptrB = std::mallocAligned(0x20, 5);
+	//std::free(ptrA);
+	//void* ptrE = std::mallocAligned(0x20, 5);
+	//std::free(ptrB);
+	//void* ptrC = std::mallocAligned(0x20, 5);
+	//void* ptrD = std::mallocAligned(0x20, 5);
 
 	// get USB device
 	//PCI::PCI_DEVICE* USB_storage = PCI::getPCIDevice(0x0C, 0x03);
