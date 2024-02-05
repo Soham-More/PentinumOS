@@ -92,13 +92,6 @@ namespace PCI
         uint16_t inw(uint16_t register_offset);
     };
 
-    //template<> uint8_t PCI_DEVICE::configRead<uint8_t>(uint8_t register_offset);
-    //template<> uint16_t PCI_DEVICE::configRead<uint16_t>(uint8_t register_offset);
-    //template<> uint32_t PCI_DEVICE::configRead<uint32_t>(uint8_t register_offset);
-    //template<> void PCI_DEVICE::configWrite<uint8_t>(uint8_t register_offset, uint8_t value);
-    //template<> void PCI_DEVICE::configWrite<uint16_t>(uint8_t register_offset, uint16_t value);
-    //template<> void PCI_DEVICE::configWrite<uint32_t>(uint8_t register_offset, uint32_t value);
-    
     void enumeratePCIBus();
     void prettyPrintDevices();
 

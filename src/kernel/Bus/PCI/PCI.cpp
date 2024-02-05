@@ -306,32 +306,6 @@ namespace PCI
         return BARInfo{reinterpret_cast<void*>(BAR & ~(0xF)), ~(sizeMask & ~0xF), BAR_Type::MEMORY_MAPPED};
     }
 
-    //template<> uint8_t PCI_DEVICE::configRead<uint8_t>(uint8_t register_offset)
-    //{
-    //    return configReadByte(bus, device_no, function, register_offset);
-    //}
-    //template<> uint16_t PCI_DEVICE::configRead<uint16_t>(uint8_t register_offset)
-    //{
-    //    return configReadWord(bus, device_no, function, register_offset);
-    //}
-    //template<> uint32_t PCI_DEVICE::configRead<uint32_t>(uint8_t register_offset)
-    //{
-    //    return configReadDword(bus, device_no, function, register_offset);
-    //}
-
-    //template<> void PCI_DEVICE::configWrite<uint8_t>(uint8_t register_offset, uint8_t value)
-    //{
-    //    configWriteByte(bus, device_no, function, register_offset, value);
-    //}
-    //template<> void PCI_DEVICE::configWrite<uint16_t>(uint8_t register_offset, uint16_t value)
-    //{
-    //    configWriteWord(bus, device_no, function, register_offset, value);
-    //}
-    //template<> void PCI_DEVICE::configWrite<uint32_t>(uint8_t register_offset, uint32_t value)
-    //{
-    //    configWriteDword(bus, device_no, function, register_offset, value);
-    //}
-
     bool PCI_DEVICE::isValid()
     {
         return vendorID != 0xFFFF;

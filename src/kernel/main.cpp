@@ -51,17 +51,16 @@ void kernel_init()
 	i686_init_isr();
 	printf("ok\n");
 
-	i686_disable_interrupt(0);
-
-	uint16_t divider = PIT_MAX_FREQ / 16500;
-
-    x86_outb(0x40, (uint8_t)divider);
-    x86_outb(0x40, (uint8_t)(divider >> 8));
-
 	printf("loading IRQs...  ");
 	init_irq();
 	PIT_init();
 	printf("ok\n");
+
+	uint16_t divider = (PIT_MAX_FREQ / 16500) & ~(0x1);
+
+	x86_outb(0x43, 0b00110110);
+    x86_outb(0x40, (uint8_t)divider);
+    x86_outb(0x40, (uint8_t)(divider >> 8));
 
 	printf("initialising PS2...  ");
 	PS2_init();
