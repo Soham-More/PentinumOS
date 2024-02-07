@@ -385,6 +385,8 @@ void printf(const char* fmt, ...)
                         shouldFormatValue = true;
                         base = 16;
                         isSigned = false;
+                        putc('0');
+                        putc('x');
                         break;
                     default:
                         break;

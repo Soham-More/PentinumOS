@@ -3,6 +3,7 @@
 #include <std/Bitmap.hpp>
 #include <std/math.h>
 #include <i686/Exception.h>
+#include <std/stdio.h>
 
 // TODO:
 // add checks for Out of bound allocations
@@ -74,10 +75,10 @@ void mem_mark_free(uint32_t begin, uint32_t size)
 
     pagesAllocated.setBits(beginPage, pageSize, false);
 }
-void mem_mark_reserved(uint32_t begin, uint32_t size)
+void mem_mark_reserved(uint64_t begin, uint64_t size)
 {
-    uint32_t beginPage = DivRoundDown(begin, PAGE_SIZE);
-    uint32_t pageSize = DivRoundUp(begin + size, PAGE_SIZE) - beginPage;
+    uint64_t beginPage = DivRoundDown(begin, PAGE_SIZE);
+    uint64_t pageSize = DivRoundUp(begin + size, PAGE_SIZE) - beginPage;
 
     pagesAllocated.setBits(beginPage, pageSize, true);
 }
@@ -122,13 +123,10 @@ void mem_init(KernelInfo& kernelInfo)
         mem_mark_reserved(kernelMap.entries[i].sectionBegin, kernelMap.entries[i].sectionSize);
     }
 
-    mem_mark_reserved((size_t)BITMAP_MEMORY_ADDR, lastAddress);
+    mem_mark_reserved(ptr_cast(BITMAP_MEMORY_ADDR), DivRoundUp(DivRoundDown(UINT32_MAX, PAGE_SIZE), 8));
 
     // mark stack as reserved
     mem_mark_reserved(0, ptr_cast(&lastAddress) + 4096);
-
-    // reserve first page
-    pagesAllocated.set(0, true);
 
     // copy all contents of kernelInfo
     kernelInfo.e820_mmap = alloc_cp((void*)kernelInfo.e820_mmap, sizeof(uint32_t) + memoryMap.entryCount * sizeof(e820_MemoryMapEntry));
@@ -138,6 +136,29 @@ void mem_init(KernelInfo& kernelInfo)
 
     // no error
     clearAllocatorStatus();
+}
+
+void prettyPrintMemory()
+{
+    bool isInUse = pagesAllocated.get(0);
+    ptr_t beginPage = 0;
+
+    printf("Allocated blocks: \n");
+    
+    for(size_t i = 1; i < pagesAllocated.size(); i++)
+    {
+        if(isInUse && !pagesAllocated.get(i))
+        {
+            printf("\t%p - %p: %p\n", beginPage * PAGE_SIZE, i * PAGE_SIZE, (i - beginPage) * PAGE_SIZE);
+        }
+
+        if(!isInUse && pagesAllocated.get(i))
+        {
+            beginPage = i;
+        }
+
+        isInUse = pagesAllocated.get(i);
+    }
 }
 
 void* alloc_page()

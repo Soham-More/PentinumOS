@@ -11,6 +11,8 @@ void memset(void* src, uint8_t value, size_t size);
 
 void mem_init(KernelInfo& kernelInfo);
 
+void prettyPrintMemory();
+
 void* alloc_page();
 void* alloc_pages(size_t count);
 // allocate more 'count' pages, preferably without changing the pointer

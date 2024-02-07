@@ -105,6 +105,8 @@ _export void start(KernelInfo kernelInfo)
 	//void* ptrC = std::mallocAligned(0x20, 5);
 	//void* ptrD = std::mallocAligned(0x20, 5);
 
+	//prettyPrintMemory();
+
 	// get USB UHCI controller
 	USB::UHCIController controller(PCI::getPCIDevice(0x0C, 0x03));
 
