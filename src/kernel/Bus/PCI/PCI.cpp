@@ -406,7 +406,7 @@ namespace PCI
     }
     uint8_t PCI_DEVICE::inb(uint16_t register_offset)
     {
-        return x86_inw(register_offset);
+        return x86_inw(portBase + register_offset);
     }
     void PCI_DEVICE::outw(uint16_t register_offset, uint16_t value)
     {
@@ -414,8 +414,19 @@ namespace PCI
     }
     uint16_t PCI_DEVICE::inw(uint16_t register_offset)
     {
-        return x86_inw(register_offset);
+        uint32_t val = x86_inw(portBase + register_offset);
+        return val;
     }
+    void PCI_DEVICE::outl(uint16_t register_offset, uint32_t value)
+    {
+        x86_outl(portBase + register_offset, value);
+    }
+    uint32_t PCI_DEVICE::inl(uint16_t register_offset)
+    {
+        uint32_t val = x86_inl(portBase + register_offset);
+        return val;
+    }
+    
     PCI_DEVICE* getPCIDevice(uint8_t classCode, uint8_t subClass)
     {
         PCI_DEVICE* pciDevice = nullptr;

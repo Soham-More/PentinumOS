@@ -124,6 +124,9 @@ void mem_init(KernelInfo& kernelInfo)
 
     mem_mark_reserved((size_t)BITMAP_MEMORY_ADDR, lastAddress);
 
+    // mark stack as reserved
+    mem_mark_reserved(0, ptr_cast(&lastAddress) + 4096);
+
     // reserve first page
     pagesAllocated.set(0, true);
 

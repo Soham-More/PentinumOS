@@ -90,6 +90,9 @@ namespace PCI
 
         void outw(uint16_t register_offset, uint16_t value);
         uint16_t inw(uint16_t register_offset);
+        
+        void outl(uint16_t register_offset, uint32_t value);
+        uint32_t inl(uint16_t register_offset);
     };
 
     void enumeratePCIBus();

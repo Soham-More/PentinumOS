@@ -81,7 +81,7 @@ namespace sys
         // get PT entry
         ptr_t paddrPage = pageTable[indexPT] & 0xFFFFF000;
 
-        return paddrPage + vaddr & 0xFFF;
+        return paddrPage + (vaddr & 0xFFF);
     }
 
     // sets flags of page

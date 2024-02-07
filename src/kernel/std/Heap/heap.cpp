@@ -123,7 +123,7 @@ namespace std
     }
 
     // align MUST be power of 2
-    void* allocHeapBin(uint32_t size, uint32_t align = 0x4)
+    void* allocHeapBin(size_t size, size_t align = 0x4)
     {
         // align size to 4 bytes.
         size += getAlignPadding(size, 0x4) + sizeof(alloc_node);
@@ -131,7 +131,7 @@ namespace std
         alloc_node* new_node = (alloc_node*)(heap_bin_top + heap_bin_head);
         ptr_t address = ptr_cast(new_node + 1);
 
-        uint32_t padding = getAlignPadding(address, align);
+        size_t padding = getAlignPadding(address, align);
 
         // heap bin full, allocate more heap.
         if(heap_bin_head + size + padding > heap_bin_size)
@@ -191,7 +191,7 @@ namespace std
     }
 
     // align MUST be power of 2
-    void* allocFreeBin(uint32_t size, uint32_t align = 0x4)
+    void* allocFreeBin(size_t size, size_t align = 0x4)
     {
         // align size to 4 bytes.
         size += getAlignPadding(size, 0x4) + sizeof(alloc_node);
@@ -261,18 +261,19 @@ namespace std
         return allocHeapBin(size, align);
     }
 
-    void* malloc(uint32_t size)
+    void* malloc(size_t size)
     {
         if(!free_bin) return allocHeapBin(size);
 
         return allocFreeBin(size);
     }
 
-    void* mallocAligned(uint32_t size, uint8_t alignBits)
+    void* mallocAligned(size_t size, size_t align)
     {
-        if(!free_bin) return allocHeapBin(size, 1 << alignBits);
-        
-        return allocFreeBin(size, 1 << alignBits);
+        align = 1 << (31 - __builtin_clz(align));
+
+        if(!free_bin) return allocHeapBin(size, align);
+        return allocFreeBin(size, 1 << align);
     }
 
     void free(void* ptr)

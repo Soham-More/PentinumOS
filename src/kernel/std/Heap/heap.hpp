@@ -6,8 +6,8 @@ namespace std
 {
     void initHeap();
 
-    void* malloc(uint32_t size);
-    void* mallocAligned(uint32_t size, uint8_t alignBits);
+    void* malloc(size_t size);
+    void* mallocAligned(size_t size, size_t align);
 
     void free(void* ptr);
 }
