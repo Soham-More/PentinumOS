@@ -273,7 +273,7 @@ namespace std
         align = 1 << (31 - __builtin_clz(align));
 
         if(!free_bin) return allocHeapBin(size, align);
-        return allocFreeBin(size, 1 << align);
+        return allocFreeBin(size, align);
     }
 
     void free(void* ptr)

@@ -209,8 +209,8 @@ namespace USB
         {
             if(td[i].status != 0)
             {
-                if((td[i].status & (1 << 3) == (1 << 3))) return 2;
-                if((td[i].status & (1 << 7) == (1 << 7))) return 3;
+                if((td[i].status & (1 << 3)) == (1 << 3)) return 2;
+                if((td[i].status & (1 << 7)) == (1 << 7)) return 3;
             }
         }
 
@@ -229,7 +229,7 @@ namespace USB
 
         bool status = sendControlIn(device, &deviceDesc, 0, 0x80, REQ_GET_DESC, (1 << 8) | 0, 0, 18, 8);
 
-        ;
+        printf("Hello");
     }
 
     // initialize the controller
@@ -327,7 +327,11 @@ namespace USB
         // clear status register
         uhciController->outw(UHCI_STATUS, 0xFFFF);
         // set the USB command register.
-        uhciController->outl(UHCI_STATUS, (1 << 7) | (1 << 6) | (1 << 0));
+        uhciController->outw(UHCI_COMMAND, (1 << 7) | (1 << 6) | (1 << 0));
+
+        PIT_sleep(10);
+
+        uint32_t cmdReg = uhciController->inw(UHCI_COMMAND);
 
         uint16_t port = 0;
         while(isPortPresent(port))
@@ -355,6 +359,10 @@ namespace USB
         rpacket->value = value;
         rpacket->size = length;
 
+        // return buffer
+        uint8_t* retBuffer = (uint8_t*)std::malloc(length);
+        memset(retBuffer, 0, length);
+
         uint16_t td_count = DivRoundUp(length, packetSize) + 2;
         uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
         memset(td_in, 0, td_count * sizeof(uhci_td));
@@ -367,7 +375,7 @@ namespace USB
         td_in[0].linkPointer = sys::getPhysicalLocation(&td_in[1]);
         td_in[0].ctrl = (device.isLowSpeedDevice ? (1 << 2) : 0);
         td_in[0].status = (1 << 7);
-        td_in[0].packetHeader = ((sizeof(rpacket) - 1) << 21) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_SETUP; // DATA0
+        td_in[0].packetHeader = ((sizeof(request_packet) - 1) << 21) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_SETUP; // DATA0
         td_in[0].bufferPointer = sys::getPhysicalLocation(rpacket);
 
         uint16_t sz = length;
@@ -379,8 +387,8 @@ namespace USB
             td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
             td_in[i].ctrl = (device.isLowSpeedDevice ? (1 << 2) : 0);
             td_in[i].status = (1 << 7);
-            td_in[i].packetHeader = ((tokenSize - 1) << 21) | (CTRL_ENDPOINT << 15) | ((i & 1) << 19) | (device.address << 8) | PACKET_IN;
-            td_in[i].bufferPointer = sys::getPhysicalLocation(buffer) + i * packetSize;
+            td_in[i].packetHeader = ((tokenSize - 1) << 21) | (CTRL_ENDPOINT << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_IN;
+            td_in[i].bufferPointer = sys::getPhysicalLocation(retBuffer) + (i - 1) * packetSize;
 
             sz -= tokenSize;
         }
@@ -404,6 +412,9 @@ namespace USB
 
         removeFromQueue(qh, UHCI_QControl);
 
+        memcpy(retBuffer, buffer, length);
+
+        std::free(retBuffer);
         std::free(rpacket);
         std::free(td_in);
         std::free(qh);
