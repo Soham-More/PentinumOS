@@ -427,7 +427,7 @@ namespace USB
         return resetPort(device.portAddress);
     }
 
-    bool UHCIController::controlIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    bool UHCIController::controlIn(uhci_device device, void* buffer, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
         request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
         rpacket->requestType = requestType;
@@ -516,7 +516,7 @@ namespace USB
 
         return status == 0;
     }
-    bool UHCIController::controlOut(uhci_device device, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    bool UHCIController::controlOut(uhci_device device, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
         request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
         rpacket->requestType = requestType;
@@ -726,12 +726,12 @@ namespace USB
         return status == 0;
     }
 
-    bool UHCIController::controlIn(uhci_device& device, request_packet rpacket, uint8_t endpoint, void* buffer, uint16_t size)
+    bool UHCIController::controlIn(uhci_device& device, request_packet rpacket, void* buffer, uint16_t size)
     {
-        return controlIn(device, buffer, endpoint, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
+        return controlIn(device, buffer, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
     }
-    bool UHCIController::controlOut(uhci_device& device, request_packet rpacket, uint8_t endpoint, uint16_t size)
+    bool UHCIController::controlOut(uhci_device& device, request_packet rpacket, uint16_t size)
     {
-        return controlOut(device, endpoint, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
+        return controlOut(device, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
     }
 }
