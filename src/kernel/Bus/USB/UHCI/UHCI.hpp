@@ -74,8 +74,8 @@ namespace USB
             uint8_t getTransferStatus(uhci_td* td, size_t count);
             uint8_t waitTillTransferComplete(uhci_td* td, size_t count);
 
-            bool controlIn(uhci_device device, void* buffer, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
-            bool controlOut(uhci_device device, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
+            bool controlIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
+            bool controlOut(uhci_device device, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
 
         public:
             UHCIController(PCI::PCI_DEVICE* device);
@@ -86,10 +86,13 @@ namespace USB
             bool resetDevice(uhci_device& device);
             const std::vector<uhci_device>& getAllDevices();
 
-            bool controlIn(uhci_device& device, request_packet rpacket, void* buffer, uint16_t size);
-            bool controlOut(uhci_device& device, request_packet rpacket, uint16_t size);
+            bool controlIn(uhci_device& device, request_packet rpacket, uint8_t endpoint, void* buffer, uint16_t size);
+            bool controlOut(uhci_device& device, request_packet rpacket, uint8_t endpoint, uint16_t size);
 
             bool bulkIn(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size);
             bool bulkOut(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size);
+
+            //bool BulkIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
+            //bool BulkOut(uhci_device device, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize);
     };
 }
