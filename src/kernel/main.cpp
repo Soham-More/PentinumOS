@@ -113,5 +113,16 @@ _export void start(KernelInfo kernelInfo)
 	controller.Init();
 	controller.Setup();
 
+	const std::vector<USB::uhci_device>& devices = controller.getAllDevices();
+
+	log_info("All Connected USB Devices: \n");
+	for(int i = 0; i < devices.size(); i++)
+	{
+		log_info("\tUSB[%u]: \n", i);
+		log_info("\t\tManufacturer Name: %s\n", devices[i].manufactureName);
+		log_info("\t\tProduct Name: %s\n", devices[i].productName);
+		log_info("\t\tSerial Number: %s\n", devices[i].serialNumber);
+	}
+
 	for (;;);
 }

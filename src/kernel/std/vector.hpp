@@ -54,10 +54,10 @@ namespace std
                 }
             }
 
-            size_t size() { return dataSize; }
+            size_t size() const { return dataSize; }
 
             // TODO: Throw exception if index is not in range
-            T& operator[](uint32_t index)
+            T& operator[](uint32_t index) const
             {
                 return data[index];
             }

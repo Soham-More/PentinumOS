@@ -19,7 +19,7 @@
 #define UHCI_FRADDR  0x8
 
 #define UHCI_TD 0b00
-#define UHCI_QH 0b00
+#define UHCI_QH 0b10
 
 #define UHCI_Invalid  0b01
 #define UHCI_Valid    0b00
@@ -39,11 +39,27 @@
 
 #define CTRL_ENDPOINT   0
 
-#define PACKET_SETUP    0b11010000 + 0b0010
-#define PACKET_IN       0b10010000 + 0b0110
-#define PACKET_OUT      0b00010000 + 0b1110
+#define PACKET_SETUP    0x2D
+#define PACKET_IN       0x69
+#define PACKET_OUT      0xe1
+
+#define DATA0 0
+#define DATA1 (1 << 19)
+
+#define USB_HOST_TO_DEVICE 0
+#define USB_DEVICE_TO_HOST (1 << 7)
+#define USB_REQ_STRD 0
+#define USB_REQ_CLASS (1 << 5)
+#define USB_REQ_VENDOR (2 << 5)
+#define USB_REP_DEVICE 0
+#define USB_REP_INTERFACE 1
+#define USB_REP_ENDPOINT 2
+#define USB_REP_OTHER 3
 
 #define REQ_GET_DESC 6
+#define REQ_SET_ADDR 5
+
+#define STR_MAX_SIZE 256
 
 namespace USB
 {
@@ -74,6 +90,25 @@ namespace USB
         uint8_t  configCount;
     }_packed;
 
+    void printWideString(char* string, uint8_t byteLength)
+    {
+        for(int i = 0; i < (byteLength / 2); i++)
+        {
+            putc(string[i * 2]);
+        }
+    }
+    void copyWideStringToString(void* src, void* dst, size_t srcByteLength)
+    {
+        uint16_t* in = (uint16_t*)src;
+        uint8_t* out = (uint8_t*)dst;
+
+        for(int i = 0; i < (srcByteLength / 2); i++)
+        {
+            out[i] = in[i];
+        }
+        out[srcByteLength / 2] = 0;
+    }
+
     UHCIController::UHCIController(PCI::PCI_DEVICE* device) : uhciController(device) { }
 
     void globalResetController(PCI::PCI_DEVICE* device)
@@ -82,7 +117,7 @@ namespace USB
         for(int i = 0; i < GLOBAL_RESET_COUNT; i++)
         {
             device->outw(UHCI_COMMAND, 0x4);
-            PIT_sleep(11);
+            PIT_sleep(15);
             device->outw(UHCI_COMMAND, 0x0);
         }
     }
@@ -207,14 +242,31 @@ namespace USB
     {
         for(int i = 0; i < count; i++)
         {
-            if(td[i].status != 0)
+            uint8_t status = (td[i].ctrlStatus >> 16) & 0xFF;
+
+            if(status != 0)
             {
-                if((td[i].status & (1 << 3)) == (1 << 3)) return 2;
-                if((td[i].status & (1 << 7)) == (1 << 7)) return 3;
+                if((status & (1 << 3)) == (1 << 3)) return 2;
+                if((status & (1 << 7)) == (1 << 7)) return 3;
+
+                return 1; // ERROR occured
             }
         }
 
         return 0;
+    }
+    uint8_t UHCIController::waitTillTransferComplete(uhci_td* td, size_t count)
+    {
+        uint16_t timeout = 1000;
+        uint8_t status = 3;
+        while(status == 3 && timeout > 0)
+        {
+            timeout -= 10;
+            PIT_sleep(10);
+            status = getTransferStatus(td, count);
+        }
+
+        return status;
     }
 
     void UHCIController::setupDevice(uint16_t portID)
@@ -227,9 +279,66 @@ namespace USB
 
         device_desc deviceDesc;
 
-        bool status = sendControlIn(device, &deviceDesc, 0, 0x80, REQ_GET_DESC, (1 << 8) | 0, 0, 18, 8);
+        char mf[STR_MAX_SIZE];
+        char prod[STR_MAX_SIZE];
+        char srn[STR_MAX_SIZE];
 
-        printf("Hello");
+        device.portAddress = UHCI_PORT_BASE + portID;
+
+        uint8_t requestType = USB_DEVICE_TO_HOST | USB_REQ_STRD | USB_REP_DEVICE;
+
+        if(controlIn(device, &deviceDesc, 0, requestType, REQ_GET_DESC, (1 << 8) | 0, 0, 18, 8))
+        {
+            uint16_t LANGID = 0x0409; // English(US)
+
+            bool status = controlIn(device, mf, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iManufacture, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+            status &= controlIn(device, prod, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iProduct, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+            status &= controlIn(device, srn, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iSerialNumber, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+
+            if(!status) log_warn("[UHCI][DeviceSetup] Failed to retrieve device info.\n");
+            else
+            {
+                device.manufactureName = (char*)std::malloc(mf[0] - 1);
+                device.productName = (char*)std::malloc(prod[0] - 1);
+                device.serialNumber = (char*)std::malloc(srn[0] - 1);
+
+                copyWideStringToString((char*)mf + 2, device.manufactureName, mf[0] - 2);
+                copyWideStringToString((char*)prod + 2, device.productName, prod[0] - 2);
+                copyWideStringToString((char*)srn + 2, device.serialNumber, srn[0] - 2);
+            }
+
+            device.bcdDevice = deviceDesc.bcdDevice;
+            device.configCount = deviceDesc.configCount;
+            device.productID = deviceDesc.productID;
+            device.protocolCode = deviceDesc.protocolCode;
+            device.maxPacketSize = deviceDesc.maxPacketSize;
+            device.subClass = deviceDesc.subClass;
+            device.vendorID = deviceDesc.vendorID;
+
+            device.address = addressCount; addressCount++;
+
+            uint8_t setAddrReqType = USB_HOST_TO_DEVICE | USB_REQ_STRD | USB_REP_DEVICE;
+
+            // reset the device again.
+            resetPort(portID);
+
+            if(controlOut(device, 0, setAddrReqType, REQ_SET_ADDR, device.address, 0, 0, device.maxPacketSize))
+            {
+                connectedDevices.push_back(device);
+            }
+            else
+            {
+                log_warn("[UHCI][DeviceSetup] Failed to set USB address.\n");
+            }
+        }
+        else
+        {
+            log_warn("[UHCI][DeviceSetup] Failed to get USB descriptor.\n");
+        }
+    }
+    const std::vector<uhci_device>& UHCIController::getAllDevices()
+    {
+        return this->connectedDevices;
     }
 
     // initialize the controller
@@ -238,7 +347,9 @@ namespace USB
         // TODO: return error if none of the BARs are I/O address
 
         // enable bus matering
-        uhciController->configWrite<uint8_t>(0x4, 0x5);
+        uhciController->configWrite<uint8_t>(0x4, 0b101);
+
+        uint32_t addr = uhciController->configRead<uint32_t>(0x20);
 
         // disable USB all interrupts
         uhciController->outw(UHCI_INTR, 0x0);
@@ -248,7 +359,7 @@ namespace USB
         // check if cmd register is default
         if(uhciController->inw(UHCI_COMMAND) != 0x0) return false;
         // check if status register is default
-        if(uhciController->inw(UHCI_COMMAND) != 0x0) return false;
+        if(uhciController->inw(UHCI_STATUS) != 0x20) return false;
 
         // what magic??
         uhciController->outw(UHCI_STATUS, 0x00FF);
@@ -260,14 +371,14 @@ namespace USB
         uhciController->outw(UHCI_COMMAND, 0x2);
 
         // sleep for 42 ms
-        PIT_sleep(42);
+        PIT_sleep(45);
 
         if(uhciController->inb(UHCI_COMMAND) & 0x2) return false;
 
         uhciController->outb(UHCI_SOF, bSOF);
 
         // disable legacy keyboard/mouse support
-        uhciController->configWrite(UHCI_PCI_LEGACY, 0xAF00);
+        uhciController->configWrite<uint16_t>(UHCI_PCI_LEGACY, 0xAF00);
 
         return true;
     }
@@ -276,7 +387,7 @@ namespace USB
     void UHCIController::Setup()
     {
         // disable all interrupts
-        uhciController->outw(UHCI_INTR, 0b0000);
+        uhciController->outw(UHCI_INTR, 0b1111);
 
         // reset frame num register to 0
         uhciController->outw(UHCI_FRNUM, 0);
@@ -324,6 +435,9 @@ namespace USB
         // set frame list pointer
         uhciController->outl(UHCI_FRADDR, frameListPhys);
 
+        uint32_t fraddr = uhciController->inl(UHCI_FRADDR);
+        uint32_t frnum = uhciController->inl(UHCI_FRNUM);
+
         // clear status register
         uhciController->outw(UHCI_STATUS, 0xFFFF);
         // set the USB command register.
@@ -350,7 +464,7 @@ namespace USB
         }
     }
 
-    bool UHCIController::sendControlIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    bool UHCIController::controlIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
         request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
         rpacket->requestType = requestType;
@@ -373,20 +487,18 @@ namespace USB
 
         // the first TD describes the control packet
         td_in[0].linkPointer = sys::getPhysicalLocation(&td_in[1]);
-        td_in[0].ctrl = (device.isLowSpeedDevice ? (1 << 2) : 0);
-        td_in[0].status = (1 << 7);
+        td_in[0].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
         td_in[0].packetHeader = ((sizeof(request_packet) - 1) << 21) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_SETUP; // DATA0
         td_in[0].bufferPointer = sys::getPhysicalLocation(rpacket);
 
         uint16_t sz = length;
 
-        for(int i = 1; (i < td_count - 1) && sz > 0; i++)
+        for(int i = 1; (i < td_count - 1); i++)
         {
             uint16_t tokenSize = sz < packetSize ? sz : packetSize;
 
             td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
-            td_in[i].ctrl = (device.isLowSpeedDevice ? (1 << 2) : 0);
-            td_in[i].status = (1 << 7);
+            td_in[i].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
             td_in[i].packetHeader = ((tokenSize - 1) << 21) | (CTRL_ENDPOINT << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_IN;
             td_in[i].bufferPointer = sys::getPhysicalLocation(retBuffer) + (i - 1) * packetSize;
 
@@ -394,27 +506,145 @@ namespace USB
         }
 
         td_in[td_count-1].linkPointer = UHCI_Invalid;
-        td_in[td_count-1].ctrl = (device.isLowSpeedDevice ? (1 << 2) : 0);
-        td_in[td_count-1].status = (1 << 7);
-        td_in[td_count-1].packetHeader = (0x7FF << 21) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_OUT; // DATA1
+        td_in[td_count-1].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
+        td_in[td_count-1].packetHeader = (0x7FF << 21) | (1 << 19) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_OUT; // DATA1
         td_in[td_count-1].bufferPointer = nullptr;
 
         insertToQueue(qh, UHCI_QControl);
 
-        uint16_t timeout = 1000;
-        uint8_t status = 3;
-        while(status == 3 && timeout > 0)
-        {
-            timeout -= 10;
-            PIT_sleep(10);
-            status = getTransferStatus(td_in, td_count);
-        }
+        uint8_t status = waitTillTransferComplete(td_in, td_count);
 
         removeFromQueue(qh, UHCI_QControl);
 
         memcpy(retBuffer, buffer, length);
 
+        if(status == 0x3)
+        {
+            log_warn("[UHCI][ControlIn] USB device timed out. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x2)
+        {
+            log_warn("[UHCI][ControlIn] USB device sent NAK. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x1)
+        {
+            log_warn("[UHCI][ControlIn] ERROR USB device. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+
         std::free(retBuffer);
+        std::free(rpacket);
+        std::free(td_in);
+        std::free(qh);
+
+        return status == 0;
+    }
+    bool UHCIController::controlOut(uhci_device device, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    {
+        request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
+        rpacket->requestType = requestType;
+        rpacket->request = request;
+        rpacket->index = index;
+        rpacket->value = value;
+        rpacket->size = length;
+
+        uhci_td* td_in = (uhci_td*)std::mallocAligned(2 * sizeof(uhci_td), 16);
+        memset(td_in, 0, 2 * sizeof(uhci_td));
+
+        uhci_queue_head* qh = (uhci_queue_head*)std::mallocAligned(sizeof(qh), 16);
+        memset(qh, 0, sizeof(uhci_queue_head));
+        qh->ptrVertical = sys::getPhysicalLocation(td_in);
+
+        // the first TD describes the control packet
+        td_in[0].linkPointer = sys::getPhysicalLocation(&td_in[1]);
+        td_in[0].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
+        td_in[0].packetHeader = ((sizeof(request_packet) - 1) << 21) | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_SETUP; // DATA0
+        td_in[0].bufferPointer = sys::getPhysicalLocation(rpacket);
+
+        // last TD, status
+        td_in[1].linkPointer = UHCI_Invalid;
+        td_in[1].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
+        td_in[1].packetHeader = (0x7FF << 21) | DATA1 | (CTRL_ENDPOINT << 15) | (device.address << 8) | PACKET_IN; // DATA1
+        td_in[1].bufferPointer = nullptr;
+
+        insertToQueue(qh, UHCI_QControl);
+
+        uint8_t status = waitTillTransferComplete(td_in, 2);
+
+        removeFromQueue(qh, UHCI_QControl);
+
+        if(status == 0x3)
+        {
+            log_warn("[UHCI][ControlOut] USB device timed out. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x2)
+        {
+            log_warn("[UHCI][ControlOut] USB device sent NAK. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x1)
+        {
+            log_warn("[UHCI][ControlOut] ERROR USB device. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+
         std::free(rpacket);
         std::free(td_in);
         std::free(qh);
