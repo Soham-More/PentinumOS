@@ -3,7 +3,7 @@
 #include <includes.h>
 #include <Bus/PCI/PCI.hpp>
 #include <std/vector.hpp>
-#include <Bus/USB/usbdefs.hpp>
+#include <USB/usbdefs.hpp>
 
 // Naming rules:
 //  types/structs: all small letters, seperated with _

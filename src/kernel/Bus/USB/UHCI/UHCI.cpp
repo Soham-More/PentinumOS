@@ -247,13 +247,13 @@ namespace USB
 
         uint8_t requestType = USB_DEVICE_TO_HOST | USB_REQ_STRD | USB_REP_DEVICE;
 
-        if(controlIn(device, &deviceDesc, requestType, REQ_GET_DESC, (1 << 8) | 0, 0, 18, 8))
+        if(controlIn(device, &deviceDesc, 0, requestType, REQ_GET_DESC, (1 << 8) | 0, 0, 18, 8))
         {
             uint16_t LANGID = 0x0409; // English(US)
 
-            bool status = controlIn(device, mf, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iManufacture, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
-            status &= controlIn(device, prod, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iProduct, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
-            status &= controlIn(device, srn, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iSerialNumber, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+            bool status = controlIn(device, mf, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iManufacture, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+            status &= controlIn(device, prod, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iProduct, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
+            status &= controlIn(device, srn, 0, requestType, REQ_GET_DESC, (3 << 8) | deviceDesc.iSerialNumber, LANGID, STR_MAX_SIZE, deviceDesc.maxPacketSize);
 
             if(!status) log_warn("[UHCI][DeviceSetup] Failed to retrieve device info.\n");
             else
@@ -282,7 +282,7 @@ namespace USB
             // reset the device again.
             resetPort(portID);
 
-            if(controlOut(device, setAddrReqType, REQ_SET_ADDR, device.address, 0, 0, device.maxPacketSize))
+            if(controlOut(device, 0, setAddrReqType, REQ_SET_ADDR, device.address, 0, 0, device.maxPacketSize))
             {
                 connectedDevices.push_back(device);
             }
@@ -499,6 +499,7 @@ namespace USB
             }
             log_warn("\tPort: %x\n", device.portAddress);
             log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
             log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
             log_warn("\tRequest: %x\n", request);
             log_warn("\tRequest Type: %x\n", requestType);
@@ -549,26 +550,40 @@ namespace USB
 
         removeFromQueue(qh, UHCI_QControl);
 
-        if(status != 0)
+        if(status == 0x3)
         {
-            switch (status)
-            {
-            case 0x3:
-                log_warn("[UHCI][ControlOut] USB device timed out. Info: ");
-                break;
-            case 0x2:
-                log_warn("[UHCI][ControlOut] USB device sent NAK. Info: ");
-                break;
-            case 0x1:
-                log_warn("[UHCI][ControlOut] ERROR USB device. Info: ");
-                break;
-            default:
-                break;
-            }
-            
             log_warn("[UHCI][ControlOut] USB device timed out. Info: ");
             log_warn("\tPort: %x\n", device.portAddress);
             log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x2)
+        {
+            log_warn("[UHCI][ControlOut] USB device sent NAK. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tRequest: %x\n", request);
+            log_warn("\tRequest Type: %x\n", requestType);
+            log_warn("\tValue: %x\n", value);
+            log_warn("\tIndex: %x\n", index);
+            log_warn("\tMax Packet Size: %x\n", packetSize);
+            log_warn("\tRequested Length: %x\n", length);
+        }
+        else if(status == 0x1)
+        {
+            log_warn("[UHCI][ControlOut] ERROR USB device. Info: ");
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
             log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
             log_warn("\tRequest: %x\n", request);
             log_warn("\tRequest Type: %x\n", requestType);
