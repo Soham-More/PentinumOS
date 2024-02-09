@@ -17,61 +17,22 @@
 #define UHCI_SOF     0xC
 #define UHCI_FRNUM   0x6
 #define UHCI_FRADDR  0x8
+#define UHCI_PCI_LEGACY  0xC0
+#define UHCI_PORT_BASE   0x10
 
 #define UHCI_TD 0b00
 #define UHCI_QH 0b10
-
 #define UHCI_Invalid  0b01
 #define UHCI_Valid    0b00
 
 #define UHCI_QControl     8
+#define UHCI_QBulk        9
 #define UHCI_QUEUE_COUNT 10
-
-#define UHCI_PCI_LEGACY  0xC0
-
-#define UHCI_PORT_BASE   0x10
-
-// min wait time after reset
-#define USB_TDRST       10
-#define USB_TRSTRCY     10 
 
 #define PORT_RESTART_TRIES 10
 
-#define CTRL_ENDPOINT   0
-
-#define PACKET_SETUP    0x2D
-#define PACKET_IN       0x69
-#define PACKET_OUT      0xe1
-
-#define DATA0 0
-#define DATA1 (1 << 19)
-
-#define USB_HOST_TO_DEVICE 0
-#define USB_DEVICE_TO_HOST (1 << 7)
-#define USB_REQ_STRD 0
-#define USB_REQ_CLASS (1 << 5)
-#define USB_REQ_VENDOR (2 << 5)
-#define USB_REP_DEVICE 0
-#define USB_REP_INTERFACE 1
-#define USB_REP_ENDPOINT 2
-#define USB_REP_OTHER 3
-
-#define REQ_GET_DESC 6
-#define REQ_SET_ADDR 5
-
-#define STR_MAX_SIZE 256
-
 namespace USB
 {
-    struct request_packet
-    {
-        uint8_t  requestType;
-        uint8_t  request;
-        uint16_t value;
-        uint16_t index;
-        uint16_t size;
-    }_packed;
-
     struct device_desc
     {
         uint8_t  length;
@@ -109,8 +70,6 @@ namespace USB
         out[srcByteLength / 2] = 0;
     }
 
-    UHCIController::UHCIController(PCI::PCI_DEVICE* device) : uhciController(device) { }
-
     void globalResetController(PCI::PCI_DEVICE* device)
     {
         // reset controller
@@ -121,6 +80,8 @@ namespace USB
             device->outw(UHCI_COMMAND, 0x0);
         }
     }
+
+    UHCIController::UHCIController(PCI::PCI_DEVICE* device) : uhciController(device) { }
 
     // returns if a USB port is present
     bool UHCIController::isPortPresent(uint16_t portID)
@@ -145,7 +106,6 @@ namespace USB
 
         return true;
     }
-
     // returns if a device is connected to USB port, and resets the device
     bool UHCIController::resetPort(uint16_t portID)
     {
@@ -382,7 +342,6 @@ namespace USB
 
         return true;
     }
-
     // setup the controller
     void UHCIController::Setup()
     {
@@ -463,6 +422,10 @@ namespace USB
             port += 2;
         }
     }
+    bool UHCIController::resetDevice(uhci_device& device)
+    {
+        return resetPort(device.portAddress);
+    }
 
     bool UHCIController::controlIn(uhci_device device, void* buffer, uint8_t endpoint, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
@@ -518,37 +481,22 @@ namespace USB
 
         memcpy(retBuffer, buffer, length);
 
-        if(status == 0x3)
+        if(status != 0)
         {
-            log_warn("[UHCI][ControlIn] USB device timed out. Info: ");
-            log_warn("\tPort: %x\n", device.portAddress);
-            log_warn("\tAddress: %x\n", device.address);
-            log_warn("\tEndpoint: %x\n", endpoint);
-            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
-            log_warn("\tRequest: %x\n", request);
-            log_warn("\tRequest Type: %x\n", requestType);
-            log_warn("\tValue: %x\n", value);
-            log_warn("\tIndex: %x\n", index);
-            log_warn("\tMax Packet Size: %x\n", packetSize);
-            log_warn("\tRequested Length: %x\n", length);
-        }
-        else if(status == 0x2)
-        {
-            log_warn("[UHCI][ControlIn] USB device sent NAK. Info: ");
-            log_warn("\tPort: %x\n", device.portAddress);
-            log_warn("\tAddress: %x\n", device.address);
-            log_warn("\tEndpoint: %x\n", endpoint);
-            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
-            log_warn("\tRequest: %x\n", request);
-            log_warn("\tRequest Type: %x\n", requestType);
-            log_warn("\tValue: %x\n", value);
-            log_warn("\tIndex: %x\n", index);
-            log_warn("\tMax Packet Size: %x\n", packetSize);
-            log_warn("\tRequested Length: %x\n", length);
-        }
-        else if(status == 0x1)
-        {
-            log_warn("[UHCI][ControlIn] ERROR USB device. Info: ");
+            switch (status)
+            {
+            case 0x3:
+                log_warn("[UHCI][ControlIn] USB device timed out. Info: \n");
+                break;
+            case 0x2:
+                log_warn("[UHCI][ControlIn] USB device sent NAK. Info: \n");
+                break;
+            case 0x1:
+                log_warn("[UHCI][ControlIn] ERROR USB device. Info: ");
+                break;
+            default:
+                break;
+            }
             log_warn("\tPort: %x\n", device.portAddress);
             log_warn("\tAddress: %x\n", device.address);
             log_warn("\tEndpoint: %x\n", endpoint);
@@ -650,5 +598,140 @@ namespace USB
         std::free(qh);
 
         return status == 0;
+    }
+
+    bool UHCIController::bulkIn(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    {
+        void* returnBuffer = std::malloc(size);
+
+        uint16_t td_count = DivRoundUp(size, device.maxPacketSize);
+        uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
+        memset(td_in, 0, td_count * sizeof(uhci_td));
+
+        uhci_queue_head* qh = (uhci_queue_head*)std::mallocAligned(sizeof(qh), 16);
+        memset(qh, 0, sizeof(uhci_queue_head));
+        qh->ptrVertical = sys::getPhysicalLocation(td_in);
+        qh->ptrHorizontal = UHCI_Invalid;
+
+        uint16_t sz = size;
+
+        for(int i = 0; i < td_count; i++)
+        {
+            uint16_t tokenSize = sz < device.maxPacketSize ? sz : device.maxPacketSize;
+
+            td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
+            if(i == td_count - 1) td_in[i].linkPointer = UHCI_Invalid;
+
+            td_in[i].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
+            td_in[i].packetHeader = ((tokenSize - 1) << 21) | (endpoint << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_IN;
+            td_in[i].bufferPointer = sys::getPhysicalLocation(returnBuffer) + i * device.maxPacketSize;
+
+            sz -= tokenSize;
+        }
+
+        insertToQueue(qh, UHCI_QControl);
+        uint8_t status = waitTillTransferComplete(td_in, td_count);
+        removeFromQueue(qh, UHCI_QControl);
+
+        if(status != 0)
+        {
+            switch (status)
+            {
+            case 0x3:
+                log_warn("[UHCI][ControlIn] USB device timed out. Info: \n");
+                break;
+            case 0x2:
+                log_warn("[UHCI][ControlIn] USB device sent NAK. Info: \n");
+                break;
+            case 0x1:
+                log_warn("[UHCI][ControlIn] ERROR USB device. Info: ");
+                break;
+            default:
+                break;
+            }
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tMax Packet Size: %x\n", device.maxPacketSize);
+            log_warn("\tSent Length: %x\n", size);
+        }
+
+        if(status == 0) memcpy(returnBuffer, buffer, size);
+
+        std::free(returnBuffer);
+        std::free(td_in);
+        std::free(qh);
+
+        return status == 0;
+    }
+    bool UHCIController::bulkOut(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    {
+        uint16_t td_count = DivRoundUp(size, device.maxPacketSize);
+        uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
+        memset(td_in, 0, td_count * sizeof(uhci_td));
+
+        uhci_queue_head* qh = (uhci_queue_head*)std::mallocAligned(sizeof(qh), 16);
+        memset(qh, 0, sizeof(uhci_queue_head));
+        qh->ptrVertical = sys::getPhysicalLocation(td_in);
+        qh->ptrHorizontal = UHCI_Invalid;
+
+        uint16_t sz = size;
+
+        for(int i = 0; i < td_count; i++)
+        {
+            uint16_t tokenSize = sz < device.maxPacketSize ? sz : device.maxPacketSize;
+
+            td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
+            if(i == td_count - 1) td_in[i].linkPointer = UHCI_Invalid;
+
+            td_in[i].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
+            td_in[i].packetHeader = ((tokenSize - 1) << 21) | (endpoint << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_OUT;
+            td_in[i].bufferPointer = sys::getPhysicalLocation(buffer) + i * device.maxPacketSize;
+
+            sz -= tokenSize;
+        }
+
+        insertToQueue(qh, UHCI_QControl);
+        uint8_t status = waitTillTransferComplete(td_in, td_count);
+        removeFromQueue(qh, UHCI_QControl);
+
+        if(status != 0)
+        {
+            switch (status)
+            {
+            case 0x3:
+                log_warn("[UHCI][ControlIn] USB device timed out. Info: \n");
+                break;
+            case 0x2:
+                log_warn("[UHCI][ControlIn] USB device sent NAK. Info: \n");
+                break;
+            case 0x1:
+                log_warn("[UHCI][ControlIn] ERROR USB device. Info: ");
+                break;
+            default:
+                break;
+            }
+            log_warn("\tPort: %x\n", device.portAddress);
+            log_warn("\tAddress: %x\n", device.address);
+            log_warn("\tEndpoint: %x\n", endpoint);
+            log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
+            log_warn("\tMax Packet Size: %x\n", device.maxPacketSize);
+            log_warn("\tSent Length: %x\n", size);
+        }
+
+        std::free(td_in);
+        std::free(qh);
+
+        return status == 0;
+    }
+
+    bool UHCIController::controlIn(uhci_device& device, request_packet rpacket, uint8_t endpoint, void* buffer, uint16_t size)
+    {
+        return controlIn(device, buffer, endpoint, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
+    }
+    bool UHCIController::controlOut(uhci_device& device, request_packet rpacket, uint8_t endpoint, uint16_t size)
+    {
+        return controlOut(device, endpoint, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
     }
 }
