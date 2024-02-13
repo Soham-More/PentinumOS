@@ -72,6 +72,15 @@ void _cdecl start(uint8_t bootDrive, void* e820_mmap)
 	void* kernelEntry = nullptr;
 	void* kernelMap = nullptr;
 
+	//FILE* test_file = fopen("text.txt");
+	//char* buffer = KERNEL_LOAD_ADDR;
+	//bool error = fread(test_file, buffer, 0xffff);
+	//if(!error)
+	//{
+	//	printf("\nError occurred!\n");
+	//}
+	//printf("%s", buffer);
+
 	if(!loadELF("kernel.elf", &kernelEntry, &kernelMap))
 	{
 		printf("ERROR: Failed to load kernel");

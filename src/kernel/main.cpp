@@ -97,16 +97,6 @@ _export void start(KernelInfo kernelInfo)
 
 	// TODO: generate an exception when nullptr is accessed.
 
-	//void* ptrA = std::mallocAligned(0x1000, 12);
-	//void* ptrB = std::mallocAligned(0x20, 5);
-	//std::free(ptrA);
-	//void* ptrE = std::mallocAligned(0x20, 5);
-	//std::free(ptrB);
-	//void* ptrC = std::mallocAligned(0x20, 5);
-	//void* ptrD = std::mallocAligned(0x20, 5);
-
-	//prettyPrintMemory();
-
 	// get USB UHCI controller
 	USB::UHCIController controller(PCI::getPCIDevice(0x0C, 0x03));
 
@@ -120,8 +110,8 @@ _export void start(KernelInfo kernelInfo)
 	{
 		log_info("\tUSB[%u]: \n", i);
 		log_info("\t\tManufacturer Name: %s\n", devices[i].manufactureName);
-		//log_info("\t\tProduct Name: %s\n", devices[i].productName);
-		//log_info("\t\tSerial Number: %s\n", devices[i].serialNumber);
+		log_info("\t\tProduct Name: %s\n", devices[i].productName);
+		log_info("\t\tSerial Number: %s\n", devices[i].serialNumber);
 	}
 
 	for (;;);

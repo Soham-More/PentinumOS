@@ -71,11 +71,11 @@ void * getFileCluster(uint16_t file_sector_id)
 {
 	return (char *)open_file_clusters + file_sector_id * SECTOR_SIZE * bootDrive.bootSector.sectors_per_cluster;
 }
-uint32_t loadNextCluster(uint16_t sector_handle, uint16_t currentCluster)
+uint32_t loadNextCluster(uint16_t sector_handle, uint32_t currentCluster)
 {
-	uint32_t fat_offset = currentCluster;
-    uint32_t fat_sector = bootDrive.fs_fat + ((fat_offset * 4) / SECTOR_SIZE);
-    uint32_t ent_offset = fat_offset % SECTOR_SIZE;
+	uint32_t fat_offset = currentCluster * 4;
+    uint32_t fat_sector = bootDrive.fs_fat + (fat_offset / SECTOR_SIZE);
+    uint32_t ent_offset = (fat_offset % SECTOR_SIZE) / 4;
     
     // read the sector if it is not already loaded
     if(fat_sector != currentFATSector)
@@ -93,7 +93,7 @@ uint32_t loadNextCluster(uint16_t sector_handle, uint16_t currentCluster)
 	// no more clusters
 	if(table_value >= 0x0FFFFFF8) return FAT32_CLUSTER_END;
 
-	uint16_t cluster_lba = ((table_value - 2) * bootDrive.bootSector.sectors_per_cluster) + bootDrive.fs_data;
+	uint32_t cluster_lba = ((table_value - 2) * bootDrive.bootSector.sectors_per_cluster) + bootDrive.fs_data;
 
 	if(!disk_readSectors(bootDrive.disk, cluster_lba, bootDrive.bootSector.sectors_per_cluster, getFileCluster(sector_handle)))
 	{
@@ -102,11 +102,11 @@ uint32_t loadNextCluster(uint16_t sector_handle, uint16_t currentCluster)
 
 	return table_value;
 }
-uint32_t getNextCluster(uint16_t currentCluster)
+uint32_t getNextCluster(uint32_t currentCluster)
 {
-    uint32_t fat_offset = currentCluster;
-    uint32_t fat_sector = bootDrive.fs_fat + ((fat_offset * 4) / SECTOR_SIZE);
-    uint32_t ent_offset = fat_offset % SECTOR_SIZE;
+    uint32_t fat_offset = currentCluster * 4;
+    uint32_t fat_sector = bootDrive.fs_fat + (fat_offset / SECTOR_SIZE);
+    uint32_t ent_offset = (fat_offset % SECTOR_SIZE) / 4;
     
     // read the sector if it is not already loaded
     if(fat_sector != currentFATSector)
@@ -128,9 +128,9 @@ uint32_t getNextCluster(uint16_t currentCluster)
 
 	return table_value;
 }
-bool loadCluster(uint16_t sector_handle, uint16_t cluster)
+bool loadCluster(uint16_t sector_handle, uint32_t cluster)
 {
-	uint16_t cluster_lba = ((cluster - 2) * bootDrive.bootSector.sectors_per_cluster) + bootDrive.fs_data;
+	uint32_t cluster_lba = ((cluster - 2) * bootDrive.bootSector.sectors_per_cluster) + bootDrive.fs_data;
 
 	return disk_readSectors(bootDrive.disk, cluster_lba, bootDrive.bootSector.sectors_per_cluster, getFileCluster(sector_handle));
 }
@@ -418,7 +418,7 @@ char FAT32_getc(FILE * file)
 	DirectoryEntry currentDirectory = file->directory;
 
 	// end of file, return null
-	if(file->position == currentDirectory.fileSize)
+	if(file->position > currentDirectory.fileSize)
 	{
 		return null;
 	}
@@ -426,6 +426,7 @@ char FAT32_getc(FILE * file)
 	// End of this cluster
 	if(file->clusterPosition > bootDrive.bytes_per_cluster)
 	{
+		//printf("\nLoading next cluster\n");
 		uint16_t nextCluster = loadNextCluster(file->sector_handle, file->currentCluster);
 
 		// this was last cluster, i.e end of file
@@ -476,6 +477,7 @@ bool FAT32_read(FILE * file, char* buffer, uint32_t size)
 		// finished reading before buffer ran out
 		if(FAT32_isEOF(file))
 		{
+			//printf("\nEOF 0x%x\n", i);
 			return true;
 		}
 
@@ -490,7 +492,7 @@ bool FAT32_read(FILE * file, char* buffer, uint32_t size)
 }
 bool FAT32_isEOF(FILE* file)
 {
-	return file->position >= file->directory.fileSize;
+	return file->position > file->directory.fileSize;
 }
 uint32_t FAT32_fsize(FILE* file)
 {
