@@ -589,11 +589,11 @@ namespace USB
         return status == 0;
     }
 
-    bool UHCIController::bulkIn(const usb_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    bool UHCIController::bulkIn(const usb_device& device, uint8_t endpoint, uint16_t maxPacketSize, void* buffer, uint16_t size)
     {
         void* returnBuffer = std::malloc(size);
 
-        uint16_t td_count = DivRoundUp(size, device.maxPacketSize);
+        uint16_t td_count = DivRoundUp(size, maxPacketSize);
         uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
         memset(td_in, 0, td_count * sizeof(uhci_td));
 
@@ -606,14 +606,14 @@ namespace USB
 
         for(int i = 0; i < td_count; i++)
         {
-            uint16_t tokenSize = sz < device.maxPacketSize ? sz : device.maxPacketSize;
+            uint16_t tokenSize = sz < maxPacketSize ? sz : maxPacketSize;
 
             td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
             if(i == td_count - 1) td_in[i].linkPointer = UHCI_Invalid;
 
             td_in[i].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
             td_in[i].packetHeader = ((tokenSize - 1) << 21) | (endpoint << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_IN;
-            td_in[i].bufferPointer = sys::getPhysicalLocation(returnBuffer) + i * device.maxPacketSize;
+            td_in[i].bufferPointer = sys::getPhysicalLocation(returnBuffer) + i * maxPacketSize;
 
             sz -= tokenSize;
         }
@@ -642,7 +642,7 @@ namespace USB
             log_warn("\tAddress: %x\n", device.address);
             log_warn("\tEndpoint: %x\n", endpoint);
             log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
-            log_warn("\tMax Packet Size: %x\n", device.maxPacketSize);
+            log_warn("\tMax Packet Size: %x\n", maxPacketSize);
             log_warn("\tSent Length: %x\n", size);
         }
 
@@ -654,9 +654,9 @@ namespace USB
 
         return status == 0;
     }
-    bool UHCIController::bulkOut(const usb_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    bool UHCIController::bulkOut(const usb_device& device, uint8_t endpoint, uint16_t maxPacketSize, void* buffer, uint16_t size)
     {
-        uint16_t td_count = DivRoundUp(size, device.maxPacketSize);
+        uint16_t td_count = DivRoundUp(size, maxPacketSize);
         uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
         memset(td_in, 0, td_count * sizeof(uhci_td));
 
@@ -669,14 +669,14 @@ namespace USB
 
         for(int i = 0; i < td_count; i++)
         {
-            uint16_t tokenSize = sz < device.maxPacketSize ? sz : device.maxPacketSize;
+            uint16_t tokenSize = sz < maxPacketSize ? sz : maxPacketSize;
 
             td_in[i].linkPointer = sys::getPhysicalLocation(&td_in[i + 1]);
             if(i == td_count - 1) td_in[i].linkPointer = UHCI_Invalid;
 
             td_in[i].ctrlStatus = (device.isLowSpeedDevice ? (1 << 26) : 0) | (1 << 23);
             td_in[i].packetHeader = ((tokenSize - 1) << 21) | (endpoint << 15) | ((i & 1) ? (1 << 19) : 0) | (device.address << 8) | PACKET_OUT;
-            td_in[i].bufferPointer = sys::getPhysicalLocation(buffer) + i * device.maxPacketSize;
+            td_in[i].bufferPointer = sys::getPhysicalLocation(buffer) + i * maxPacketSize;
 
             sz -= tokenSize;
         }
@@ -705,7 +705,7 @@ namespace USB
             log_warn("\tAddress: %x\n", device.address);
             log_warn("\tEndpoint: %x\n", endpoint);
             log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
-            log_warn("\tMax Packet Size: %x\n", device.maxPacketSize);
+            log_warn("\tMax Packet Size: %x\n", maxPacketSize);
             log_warn("\tSent Length: %x\n", size);
         }
 

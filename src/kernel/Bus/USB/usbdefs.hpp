@@ -32,6 +32,10 @@
 #define USB_DESC_CONFIG 2
 #define USB_DESC_STRING 3
 
+#define USB_SET_CONFIG  9
+#define USB_GET_CONFIG  8
+#define USB_CLEAR_FEATURE 1
+
 #define STR_MAX_SIZE 256
 
 namespace USB

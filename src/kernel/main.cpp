@@ -18,6 +18,7 @@
 #include <System/Stack.hpp>
 #include <std/Heap/heap.hpp>
 #include <Drivers/USB/usb.hpp>
+#include <Drivers/USB/usbmsd.hpp>
 
 _import void _init();
 
@@ -138,7 +139,15 @@ _export void start(KernelInfo kernelInfo)
 
 	USB::setController(controller);
 
-	USB::config_desc config0 = USB::getConfig(devices[0], 0);
+	USB::msd_device storage_device = USB::init_msd_device(devices[0]);
+
+	uint8_t countLUN = USB::msd_getMaxLUN(storage_device);
+
+	char MBR_sector[1024];
+
+	USB::msd_read_sectors(storage_device, 0, 1, MBR_sector);
+
+	printf("%s", MBR_sector + 0xB5);
 
 	printf("Finished Executing, Halting...!\n");
 	for (;;);

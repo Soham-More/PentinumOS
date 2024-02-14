@@ -186,4 +186,86 @@ namespace USB
         std::free(configDesc.interfaces);
         configDesc.interfaces = 0;
     }
+
+    bool setConfig(const usb_device& device, const config_desc& config)
+    {
+        // set configuration packet
+        request_packet reqPacket;
+        reqPacket.requestType = USB_HOST_TO_DEVICE | USB_REQ_STRD | USB_REP_DEVICE;
+        reqPacket.request = USB_SET_CONFIG;
+        reqPacket.value = config.value;
+        reqPacket.index = 0;
+        reqPacket.size = 0;
+
+        bool status = currentController->controlOut(device, reqPacket, 0);
+
+        return status;
+    }
+    uint8_t getDeviceConfigID(const usb_device& device)
+    {
+        // set configuration packet
+        request_packet reqPacket;
+        reqPacket.requestType = USB_DEVICE_TO_HOST | USB_REQ_STRD | USB_REP_DEVICE;
+        reqPacket.request = USB_GET_CONFIG;
+        reqPacket.value = 0;
+        reqPacket.index = 0;
+        reqPacket.size = 1;
+
+        uint8_t configID = 0;
+
+        bool status = currentController->controlIn(device, reqPacket, &configID, 1);
+
+        return configID;
+    }
+
+    bool setInterface(const usb_device& device, const interface_desc& interface)
+    {
+        // set interface packer
+        request_packet reqPacket;
+        reqPacket.requestType = USB_HOST_TO_DEVICE | USB_REQ_STRD | USB_REP_DEVICE;
+        reqPacket.request = USB_SET_CONFIG;
+        reqPacket.value = interface.alternateSetting;
+        reqPacket.index = interface.interfaceID;
+        reqPacket.size = 0;
+
+        bool status = currentController->controlOut(device, reqPacket, 0);
+
+        return status;
+    }
+
+    bool clearFeature(const usb_device& device, uint8_t feature, uint8_t featureSelection, uint8_t featureID)
+    {
+        // clear feature packer
+        request_packet reqPacket;
+        reqPacket.requestType = USB_HOST_TO_DEVICE | USB_REQ_STRD | (feature & 0b11);
+        reqPacket.request = USB_CLEAR_FEATURE;
+        reqPacket.value = featureSelection & 0b11;
+        reqPacket.index = featureID;
+        reqPacket.size = 0;
+
+        bool status = currentController->controlOut(device, reqPacket, 0);
+
+        return status;
+    }
+
+    // send control packet to device
+    bool controlPacketOut(const usb_device& device, request_packet rPacket)
+    {
+        return currentController->controlOut(device, rPacket, rPacket.size);
+    }
+    // get control packet to device
+    bool controlPacketIn(const usb_device& device, request_packet rPacket, void* buffer)
+    {
+        return currentController->controlIn(device, rPacket, buffer, rPacket.size);
+    }
+
+    // bulk out
+    bool bulkOut(const usb_device& device, endpoint_desc* endpoint, void* buffer, size_t size)
+    {
+        return currentController->bulkOut(device, endpoint->endpointAddress & 0xF, endpoint->maxPacketSize, buffer, size);
+    }
+    bool bulkIn(const usb_device& device, endpoint_desc* endpoint, void* buffer, size_t size)
+    {
+        return currentController->bulkIn(device, endpoint->endpointAddress & 0xF, endpoint->maxPacketSize, buffer, size);
+    }
 }
