@@ -116,7 +116,7 @@ namespace std
 
     void initHeap()
     {
-        heap_bin_top = (uint8_t*)alloc_pages(HEAP_BIN_SIZE);
+        heap_bin_top = (uint8_t*)alloc_pages_kernel(HEAP_BIN_SIZE);
         heap_bin_head = 0;
         heap_bin_size = HEAP_BIN_SIZE * PAGE_SIZE;
         free_bin = nullptr;

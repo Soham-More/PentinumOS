@@ -18,6 +18,10 @@ void* alloc_pages(size_t count);
 // allocate more 'count' pages, preferably without changing the pointer
 void* realloc_pages(void* pointer, size_t prev, size_t count);
 
+// allocates page 256KiB after kernel
+// used by heap
+void* alloc_pages_kernel(size_t pages);
+
 void* alloc_pages_aligned(size_t align, size_t count);
 
 void* alloc_io_space_pages(size_t align, size_t count);

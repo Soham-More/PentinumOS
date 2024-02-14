@@ -1,4 +1,4 @@
-#include "usbmsd.hpp"
+#include "MassStorage.hpp"
 
 #include <std/logger.h>
 
@@ -30,7 +30,6 @@ namespace USB
         uint8_t cmdLen;         // Length of command in next field [1-16]
         uint8_t command[16];    // Command Data
     } _packed;
-
     struct CommandStatusWrapper
     {
         uint32_t signature;     // CSW Magic number
@@ -38,7 +37,6 @@ namespace USB
         uint32_t dataResidue;   // Difference in data actually read/written
         uint8_t status;         // Status Byte
     } _packed;
-
     struct InquiryReturnBlock
     {
         uint8_t peripheralDeviceType : 5;
@@ -73,13 +71,11 @@ namespace USB
         char productIdentification[16];
         char productRevisionLevel[4];
     } _packed;
-
     struct CapacityListHeader
     {
         uint8_t reserved[3];
         uint8_t listLength;
     } _packed;
-
     struct CapacityDescriptor
     {
         uint32_t numberOfBlocks;
@@ -87,20 +83,17 @@ namespace USB
         uint8_t reserved : 6;
         uint32_t blockLength : 24;
     } _packed;
-
     struct Capacity10Block
     {
         uint32_t logicalBlockAddress;
         uint32_t blockLength;
     } _packed;
-
     struct Capacity16Block
     {
         uint64_t logicalBlockAddress;
         uint32_t blockLength;
         uint8_t unused[20];
     } _packed;
-
     struct RequestSenseBlock
     {
         uint8_t errorCode : 7;
@@ -119,15 +112,6 @@ namespace USB
         uint8_t FRUC;
         uint8_t specific[3];
     } _packed;
-
-    bool msd_device::sendBulkOut(void* buffer, size_t size)
-    {
-        return USB::bulkOut(this->device, this->bulkOut, buffer, size);
-    }
-    bool msd_device::sendBulkIn(void* buffer, size_t size)
-    {
-        return USB::bulkIn(this->device, this->bulkIn, buffer, size);
-    }
 
     CommandBlockWrapper SCSIprepareCommandBlock(uint8_t command, int length, uint64_t lba = 0, int sectors = 0)
     {
@@ -229,34 +213,7 @@ namespace USB
 
         return cmd;
     }
-
-    bool ResetRecovery(msd_device device)
-    {
-        // First send the MSD Reset Request
-        if(!msd_reset(device))
-        {
-            log_error("[USB Mass Storage Driver] Reset Failed!\n");
-            return false;
-        }
-
-        // Then the Clear feature for the IN-Endpoint
-        if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkIn->endpointAddress & 0xF))
-        {
-            log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-In!\n");
-            return false;
-        }
-
-        // Then the Clear feature for the OUT-Endpoint
-        if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkOut->endpointAddress & 0xF))
-        {
-            log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-Out!\n");
-            return false;
-        }
-
-        return true;
-    }
-
-    bool SCSIRequest(msd_device device, CommandBlockWrapper* request, uint8_t* dataPointer, int dataLength)
+    bool SCSIRequest(const msd_device& device, CommandBlockWrapper* request, uint8_t* dataPointer, int dataLength)
     {
         // Send request to device
         if(!device.sendBulkOut(request, sizeof(CommandBlockWrapper)))
@@ -264,7 +221,7 @@ namespace USB
             log_error("[USB Mass Storage Driver] Error Sending command %b to bulk out endpoint\n", request->command[0]);
             
             // Clear HALT for the OUT-Endpoint
-            if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkOut->endpointAddress & 0xF))
+            if(!clearFeature(device, USB_REP_ENDPOINT, 0, device.bulkOut->endpointAddress & 0xF))
             {
                 log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-Out!\n");
                 return false;
@@ -281,7 +238,7 @@ namespace USB
                     log_error("[USB Mass Storage Driver] Error receiving data after command %b from bulk endpoint, len=%d\n", request->command[0], dataLength);
                     
                     // Clear HALT feature for the IN-Endpoint
-                    if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkIn->endpointAddress & 0xF))
+                    if(!clearFeature(device, USB_REP_ENDPOINT, 0, device.bulkIn->endpointAddress & 0xF))
                     {
                         log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-In!\n");
                         return false;
@@ -294,7 +251,7 @@ namespace USB
                     log_error("[USB Mass Storage Driver] Error sending data after command %b to bulk endpoint, len=%d\n", request->command[0], dataLength);
                     
                     // Clear HALT feature for the OUT-Endpoint
-                    if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkOut->endpointAddress & 0xF))
+                    if(!clearFeature(device, USB_REP_ENDPOINT, 0, device.bulkOut->endpointAddress & 0xF))
                     {
                         log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-Out!\n");
                         return false;
@@ -311,7 +268,7 @@ namespace USB
             log_error("[USB Mass Storage Driver] Error reading Command Status Wrapper from bulk in endpoint\n");
 
             // Clear HALT feature for the IN-Endpoint
-            if(!clearFeature(device.device, USB_REP_ENDPOINT, 0, device.bulkIn->endpointAddress & 0xF))
+            if(!clearFeature(device, USB_REP_ENDPOINT, 0, device.bulkIn->endpointAddress & 0xF))
             {
                 log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-In!\n");
                 return false;
@@ -319,11 +276,12 @@ namespace USB
         }
 
         if(status.signature != CSW_SIGNATURE) {
-            ResetRecovery(device);
+            device.fullReset();
             return false;
         }
 
-        if((status.status == 1) && (request->command[0] != SCSI_REQUEST_SENSE)) {
+        if((status.status == 1) && (request->command[0] != SCSI_REQUEST_SENSE))
+        {
             // Command did not succeed so Request the Sense data
             CommandBlockWrapper requestSenseCMD = SCSIprepareCommandBlock(SCSI_REQUEST_SENSE, sizeof(RequestSenseBlock));
             RequestSenseBlock requestSenseRet;
@@ -336,8 +294,9 @@ namespace USB
             return false;
         }
 
-        if((status.status == 2) && (request->command[0] != SCSI_REQUEST_SENSE)) {
-            ResetRecovery(device);
+        if((status.status == 2) && (request->command[0] != SCSI_REQUEST_SENSE))
+        {
+            device.fullReset();
             return false;
         }
 
@@ -348,22 +307,82 @@ namespace USB
         return false;
     }
 
-    msd_device init_msd_device(const usb_device& device)
+    bool msd_device::sendBulkOut(void* buffer, size_t size) const
+    {
+        return USB::bulkOut(*this, this->bulkOut, buffer, size);
+    }
+    bool msd_device::sendBulkIn(void* buffer, size_t size) const
+    {
+        return USB::bulkIn(*this, this->bulkIn, buffer, size);
+    }
+
+    bool msd_device::reset() const
+    {
+        // bulk reset packet
+        request_packet reqPacket;
+        reqPacket.requestType = USB_HOST_TO_DEVICE | USB_REQ_CLASS | USB_REP_INTERFACE;
+        reqPacket.request = 0xFF;
+        reqPacket.value = 0;
+        reqPacket.index = interface->interfaceID;
+        reqPacket.size = 0;
+
+        return controlPacketOut(*this, reqPacket);
+    }
+    bool msd_device::fullReset() const
+    {
+        // First send the MSD Reset Request
+        if(!reset())
+        {
+            log_error("[USB Mass Storage Driver] Reset Failed!\n");
+            return false;
+        }
+
+        // Then the Clear feature for the IN-Endpoint
+        if(!clearFeature(*this, USB_REP_ENDPOINT, 0, this->bulkIn->endpointAddress & 0xF))
+        {
+            log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-In!\n");
+            return false;
+        }
+
+        // Then the Clear feature for the OUT-Endpoint
+        if(!clearFeature(*this, USB_REP_ENDPOINT, 0, this->bulkOut->endpointAddress & 0xF))
+        {
+            log_error("[USB Mass Storage Driver] Clear feature (HALT) Failed for Bulk-Out!\n");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool msd_device::init(const usb_device& device)
     {
         // TODO: identify the configuration that supports Bulk only transport
         USB::config_desc config0 = USB::getConfig(device, 0);
         
         bool status = USB::setConfig(device, config0);
 
-        interface_desc& msdBulkOnly = config0.interfaces[0];
+        this->interface = &config0.interfaces[0];
 
-        msd_device msd_dev; msd_dev.device = device;
-        msd_dev.interface = &msdBulkOnly;
+        // copy 
+        *(usb_device*)this = device;
 
-        for(size_t i = 0; i < msdBulkOnly.endpointCount; i++)
+        // bulk reset packet
+        request_packet reqPacket;
+        reqPacket.requestType = USB_DEVICE_TO_HOST | USB_REQ_CLASS | USB_REP_INTERFACE;
+        reqPacket.request = 0xFE;
+        reqPacket.value = 0;
+        reqPacket.index = this->interface->interfaceID;
+        reqPacket.size = 1;
+
+        if(!controlPacketIn(*this, reqPacket, &this->logicalUnitCount))
         {
-            if(msdBulkOnly.endpoints[i].endpointAddress & 0x80) msd_dev.bulkIn = &msdBulkOnly.endpoints[i];
-            else msd_dev.bulkOut = &msdBulkOnly.endpoints[i];
+            log_warn("[USB Mass Storage Driver] get LUN Count Failed");
+        }
+
+        for(size_t i = 0; i < this->interface->endpointCount; i++)
+        {
+            if(this->interface->endpoints[i].endpointAddress & 0x80) this->bulkIn = &this->interface->endpoints[i];
+            else this->bulkOut = &this->interface->endpoints[i];
         }
 
         ///////////////
@@ -372,15 +391,12 @@ namespace USB
         CommandBlockWrapper checkReadyCMD = SCSIprepareCommandBlock(SCSI_TEST_UNIT_READY, 0);
         for(int i = 0; i < 3; i++)
         {
-            if(!SCSIRequest(msd_dev, &checkReadyCMD, 0, 0))
+            if(!SCSIRequest(*this, &checkReadyCMD, 0, 0))
             {
                 log_warn("[USB Mass Storage Driver] Device not ready yet\n");
                 PIT_sleep(100);
             }
-            else
-            {
-                break;
-            }
+            else break;
         }
 
         ///////////////
@@ -388,33 +404,23 @@ namespace USB
         ///////////////
         CommandBlockWrapper inquiryCMD = SCSIprepareCommandBlock(SCSI_INQUIRY, sizeof(InquiryReturnBlock));
         InquiryReturnBlock inquiryRet;
-        if(SCSIRequest(msd_dev, &inquiryCMD, (uint8_t*)&inquiryRet, sizeof(InquiryReturnBlock))) {
-            char vendorInfo[8 + 1]; vendorInfo[8] = '\0'; memcpy(inquiryRet.vendorInformation, vendorInfo, 8);
-            char productInfo[16 + 1]; productInfo[16] = '\0'; memcpy(inquiryRet.productIdentification, productInfo, 16);
-            char revision[4 + 1]; revision[4] = '\0'; memcpy(inquiryRet.productRevisionLevel, revision, 4);
-
-            log_info("[USB Mass Storage Driver] Vendor: %s Product: %s Revision: %s\n", vendorInfo, productInfo, revision);
+        if(SCSIRequest(*this, &inquiryCMD, (uint8_t*)&inquiryRet, sizeof(InquiryReturnBlock))) {
+            vendorSCSI[8] = '\0'; memcpy(inquiryRet.vendorInformation, vendorSCSI, 8);
+            productSCSI[16] = '\0'; memcpy(inquiryRet.productIdentification, productSCSI, 16);
+            revisionSCSI[4] = '\0'; memcpy(inquiryRet.productRevisionLevel, revisionSCSI, 4);
 
             // Check if it is a Direct Access Block Device or CD-ROM/DVD device
             if(inquiryRet.peripheralDeviceType != 0x00 && inquiryRet.peripheralDeviceType != 0x05)
-                return msd_dev;
-            
+                return false;
             // Check if LUN is connected to something
             if(inquiryRet.peripheralQualifier != 0)
-                return msd_dev;
-
+                return false;
             // Response Data Format should be 0x01 or 0x02
             if(inquiryRet.responseDataFormat != 0x01 && inquiryRet.responseDataFormat != 0x02)
-                return msd_dev;
-
-            // Create Identifier
-            int strLen = 16;
-            while(productInfo[strLen - 1] == ' ' && strLen > 1)
-                strLen--;
-            //
+                return false;
         }
         else {
-            return msd_dev;
+            return false;
         }
 
         ///////////////
@@ -422,7 +428,7 @@ namespace USB
         ///////////////
         CommandBlockWrapper readCapacityCMD = SCSIprepareCommandBlock(SCSI_READ_CAPACITY_10, sizeof(Capacity10Block));
         Capacity10Block readCapacityRet;
-        if(SCSIRequest(msd_dev, &readCapacityCMD, (uint8_t*)&readCapacityRet, sizeof(Capacity10Block)))
+        if(SCSIRequest(*this, &readCapacityCMD, (uint8_t*)&readCapacityRet, sizeof(Capacity10Block)))
         {
             readCapacityRet.logicalBlockAddress = __builtin_bswap32(readCapacityRet.logicalBlockAddress);
             readCapacityRet.blockLength = __builtin_bswap32(readCapacityRet.blockLength);
@@ -434,68 +440,32 @@ namespace USB
                 ////////////
                 CommandBlockWrapper readCapacity16CMD = SCSIprepareCommandBlock(SCSI_READ_CAPACITY_16, sizeof(Capacity16Block));
                 Capacity16Block readCapacityRet16;
-                if(SCSIRequest(msd_dev, &readCapacity16CMD, (uint8_t*)&readCapacityRet16, sizeof(Capacity16Block))) {
+                if(SCSIRequest(*this, &readCapacity16CMD, (uint8_t*)&readCapacityRet16, sizeof(Capacity16Block))) {
                     readCapacityRet16.logicalBlockAddress = __builtin_bswap64(readCapacityRet16.logicalBlockAddress);
                     readCapacityRet16.blockLength = __builtin_bswap64(readCapacityRet16.blockLength);
 
-                    msd_dev.blockCount = readCapacityRet16.logicalBlockAddress - 1;
-                    msd_dev.blockSize = readCapacityRet16.blockLength;
-                    msd_dev.use16Base = true;
+                    this->blockCount = readCapacityRet16.logicalBlockAddress - 1;
+                    this->blockSize = readCapacityRet16.blockLength;
+                    this->use16Base = true;
                 }
             }
             else
             {
-                msd_dev.blockCount = readCapacityRet.logicalBlockAddress - 1;
-                msd_dev.blockSize = readCapacityRet.blockLength;
+                this->blockCount = readCapacityRet.logicalBlockAddress - 1;
+                this->blockSize = readCapacityRet.blockLength;
             }
         }
 
-
-        log_info("[USB Mass Storage Driver] Blocks=%d BlockSize=%d Size=%d Mb\n", (uint32_t)msd_dev.blockCount, (uint32_t)msd_dev.blockSize, (uint32_t)(((uint64_t)msd_dev.blockCount * (uint64_t)msd_dev.blockSize) / 1024 / 1024));
-        msd_dev.size = msd_dev.blockCount * msd_dev.blockSize;
-
-        return msd_dev;
+        this->size = this->blockCount * this->blockSize;
+        return true;
     }
 
-    bool msd_reset(msd_device device)
+    bool msd_device::read_sectors(uint32_t lba, size_t count, void* buffer)
     {
-        // bulk reset packet
-        request_packet reqPacket;
-        reqPacket.requestType = USB_HOST_TO_DEVICE | USB_REQ_CLASS | USB_REP_INTERFACE;
-        reqPacket.request = 0xFF;
-        reqPacket.value = 0;
-        reqPacket.index = device.interface->interfaceID;
-        reqPacket.size = 0;
-
-        return controlPacketOut(device.device, reqPacket);
-    }
-
-    uint8_t msd_getMaxLUN(msd_device device)
-    {
-        // bulk reset packet
-        request_packet reqPacket;
-        reqPacket.requestType = USB_DEVICE_TO_HOST | USB_REQ_CLASS | USB_REP_INTERFACE;
-        reqPacket.request = 0xFE;
-        reqPacket.value = 0;
-        reqPacket.index = device.interface->interfaceID;
-        reqPacket.size = 1;
-
-        uint8_t countLUN = 0;
-
-        bool status = controlPacketIn(device.device, reqPacket, &countLUN);
-
-        return countLUN;
-    }
-
-    bool msd_read_sectors(msd_device device, uint32_t lba, size_t count, void* buffer)
-    {
-        CommandBlockWrapper sendBuf = SCSIprepareCommandBlock(device.use16Base ? SCSI_READ_16 : SCSI_READ_10, device.blockSize, lba, count);
-        if(SCSIRequest(device, &sendBuf, (uint8_t*)buffer, device.blockSize)) {
-            return true;
-        }
+        CommandBlockWrapper sendBuf = SCSIprepareCommandBlock(use16Base ? SCSI_READ_16 : SCSI_READ_10, blockSize, lba, count);
+        if(SCSIRequest(*this, &sendBuf, (uint8_t*)buffer, blockSize)) return true;
 
         log_error("[USB Mass Storage Driver] Error writing sector %x", lba);
-
         return false;
     }
 }

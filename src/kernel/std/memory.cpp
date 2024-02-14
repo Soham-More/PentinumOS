@@ -67,6 +67,7 @@ typedef struct
 e820_MemoryMap memoryMap;
 
 uint32_t allocatorStatus;
+ptr_t lastKernelAddress;
 
 void mem_mark_free(uint32_t begin, uint32_t size)
 {
@@ -118,9 +119,15 @@ void mem_init(KernelInfo& kernelInfo)
         }
     }
 
+    lastKernelAddress = 0;
     for(size_t i = 0; i < kernelMap.entryCount; i++)
     {
         mem_mark_reserved(kernelMap.entries[i].sectionBegin, kernelMap.entries[i].sectionSize);
+
+        if(lastKernelAddress < kernelMap.entries[i].sectionBegin + kernelMap.entries[i].sectionSize)
+        {
+            lastKernelAddress = kernelMap.entries[i].sectionBegin + kernelMap.entries[i].sectionSize;
+        }
     }
 
     mem_mark_reserved(ptr_cast(BITMAP_MEMORY_ADDR), DivRoundUp(DivRoundDown(UINT32_MAX, PAGE_SIZE), 8));
@@ -215,6 +222,15 @@ void* realloc_pages(void* pointer, size_t prev_count, size_t req_count)
     // if here then, memory can be extended
     pagesAllocated.setBits(loc, req_count, true);
     return pointer;
+}
+
+void* alloc_pages_kernel(size_t pages)
+{
+    ptr_t page = (lastKernelAddress & ~0xFFF) + 0x100000;
+
+    mem_mark_reserved(page, pages);
+
+    return (void*)page;
 }
 
 void* alloc_pages_aligned(size_t align, size_t count)

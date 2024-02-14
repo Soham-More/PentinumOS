@@ -17,8 +17,6 @@
 #include <Bus/USB/UHCI/UHCI.hpp>
 #include <System/Stack.hpp>
 #include <std/Heap/heap.hpp>
-#include <Drivers/USB/usb.hpp>
-#include <Drivers/USB/usbmsd.hpp>
 
 _import void _init();
 
@@ -72,18 +70,6 @@ void kernel_init()
 	PS2::init_keyboard();
 	printf("ok\n");
 }
-
-//struct usb_config
-//{
-//	uint8_t  length;
-//	uint8_t  descType;
-//	uint16_t totalLength;
-//	uint8_t  interfaceCount;
-//	uint8_t  configValue;
-//	uint8_t  configIndex;
-//	uint8_t  attribs;
-//	uint8_t  maxPower;
-//};
 
 // https://github.com/Remco123/CactusOS/blob/master/kernel/src/system/components/pci.cpp
 
@@ -139,14 +125,12 @@ _export void start(KernelInfo kernelInfo)
 
 	USB::setController(controller);
 
-	USB::msd_device storage_device = USB::init_msd_device(devices[0]);
-
-	uint8_t countLUN = USB::msd_getMaxLUN(storage_device);
-
+	USB::msd_device storage_device;
 	char MBR_sector[1024];
 
-	USB::msd_read_sectors(storage_device, 0, 1, MBR_sector);
-
+	storage_device.init(devices[0]);
+	storage_device.read_sectors(0, 1, MBR_sector);
+	
 	printf("%s", MBR_sector + 0xB5);
 
 	printf("Finished Executing, Halting...!\n");
