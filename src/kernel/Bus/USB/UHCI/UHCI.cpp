@@ -233,7 +233,7 @@ namespace USB
     {
         uint16_t portsc = uhciController->inw(UHCI_PORT_BASE + portID);
 
-        uhci_device device;
+        usb_device device;
         device.isLowSpeedDevice = (portsc & (1 << 8)) ? 1 : 0;
         device.address = 0;
 
@@ -258,9 +258,9 @@ namespace USB
             if(!status) log_warn("[UHCI][DeviceSetup] Failed to retrieve device info.\n");
             else
             {
-                device.manufactureName = (char*)std::malloc(mf[0] - 1);
-                device.productName = (char*)std::malloc(prod[0] - 1);
-                device.serialNumber = (char*)std::malloc(srn[0] - 1);
+                device.manufactureName = (char*)std::malloc(mf[0] - 1); memset(device.manufactureName, 0, mf[0] - 1);
+                device.productName = (char*)std::malloc(prod[0] - 1); memset(device.productName, 0, prod[0] - 1);
+                device.serialNumber = (char*)std::malloc(srn[0] - 1); memset(device.serialNumber, 0, srn[0] - 1);
 
                 copyWideStringToString((char*)mf + 2, device.manufactureName, mf[0] - 2);
                 copyWideStringToString((char*)prod + 2, device.productName, prod[0] - 2);
@@ -275,15 +275,17 @@ namespace USB
             device.subClass = deviceDesc.subClass;
             device.vendorID = deviceDesc.vendorID;
 
-            device.address = addressCount; addressCount++;
+            device.address = 0;
 
             uint8_t setAddrReqType = USB_HOST_TO_DEVICE | USB_REQ_STRD | USB_REP_DEVICE;
 
             // reset the device again.
             resetPort(portID);
 
-            if(controlOut(device, setAddrReqType, REQ_SET_ADDR, device.address, 0, 0, device.maxPacketSize))
+            if(controlOut(device, setAddrReqType, REQ_SET_ADDR, addressCount, 0, 0, device.maxPacketSize))
             {
+                device.address = addressCount; addressCount++;
+
                 connectedDevices.push_back(device);
             }
             else
@@ -296,7 +298,7 @@ namespace USB
             log_warn("[UHCI][DeviceSetup] Failed to get USB descriptor.\n");
         }
     }
-    const std::vector<uhci_device>& UHCIController::getAllDevices()
+    const std::vector<usb_device>& UHCIController::getAllDevices()
     {
         return this->connectedDevices;
     }
@@ -406,6 +408,9 @@ namespace USB
 
         uint32_t cmdReg = uhciController->inw(UHCI_COMMAND);
 
+        // address of 0 is reserved.
+        addressCount = 1;
+
         uint16_t port = 0;
         while(isPortPresent(port))
         {
@@ -422,12 +427,12 @@ namespace USB
             port += 2;
         }
     }
-    bool UHCIController::resetDevice(uhci_device& device)
+    bool UHCIController::resetDevice(usb_device& device)
     {
         return resetPort(device.portAddress);
     }
 
-    bool UHCIController::controlIn(uhci_device device, void* buffer, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    bool UHCIController::controlIn(usb_device device, void* buffer, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
         request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
         rpacket->requestType = requestType;
@@ -515,7 +520,7 @@ namespace USB
 
         return status == 0;
     }
-    bool UHCIController::controlOut(uhci_device device, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
+    bool UHCIController::controlOut(usb_device device, uint8_t requestType, uint8_t request, uint16_t value, uint16_t index, uint16_t length, uint8_t packetSize)
     {
         request_packet* rpacket = (request_packet*)std::mallocAligned(sizeof(request_packet), 16);
         rpacket->requestType = requestType;
@@ -566,7 +571,6 @@ namespace USB
                 break;
             }
             
-            log_warn("[UHCI][ControlOut] USB device timed out. Info: ");
             log_warn("\tPort: %x\n", device.portAddress);
             log_warn("\tAddress: %x\n", device.address);
             log_warn("\tSpeed: %s\n", device.isLowSpeedDevice ? "Low Speed" : "Full Speed");
@@ -585,7 +589,7 @@ namespace USB
         return status == 0;
     }
 
-    bool UHCIController::bulkIn(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    bool UHCIController::bulkIn(const usb_device& device, uint8_t endpoint, void* buffer, uint16_t size)
     {
         void* returnBuffer = std::malloc(size);
 
@@ -650,7 +654,7 @@ namespace USB
 
         return status == 0;
     }
-    bool UHCIController::bulkOut(uhci_device& device, uint8_t endpoint, void* buffer, uint16_t size)
+    bool UHCIController::bulkOut(const usb_device& device, uint8_t endpoint, void* buffer, uint16_t size)
     {
         uint16_t td_count = DivRoundUp(size, device.maxPacketSize);
         uhci_td* td_in = (uhci_td*)std::mallocAligned(td_count * sizeof(uhci_td), 16);
@@ -711,11 +715,11 @@ namespace USB
         return status == 0;
     }
 
-    bool UHCIController::controlIn(uhci_device& device, request_packet rpacket, void* buffer, uint16_t size)
+    bool UHCIController::controlIn(const usb_device& device, request_packet rpacket, void* buffer, uint16_t size)
     {
         return controlIn(device, buffer, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
     }
-    bool UHCIController::controlOut(uhci_device& device, request_packet rpacket, uint16_t size)
+    bool UHCIController::controlOut(const usb_device& device, request_packet rpacket, uint16_t size)
     {
         return controlOut(device, rpacket.requestType, rpacket.request, rpacket.value, rpacket.index, size, device.maxPacketSize);
     }

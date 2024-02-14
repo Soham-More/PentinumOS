@@ -202,7 +202,7 @@ namespace std
         while(node)
         {
             // TODO: align data area.
-            if(size < (node->size - sizeof(alloc_node) - MIN_NODE_SIZE))
+            if(size + sizeof(alloc_node) + MIN_NODE_SIZE < node->size)
             {
                 //node->size -= size; // decrease node size
 
@@ -211,7 +211,7 @@ namespace std
                 ptr_t padding = address & (align - 1);
 
                 // padding makes it too big
-                if(size + padding > (node->size - sizeof(alloc_node) - MIN_NODE_SIZE))
+                if(size + padding + sizeof(alloc_node) + MIN_NODE_SIZE > node->size)
                 {
                     goto allocFullNode;
                 }

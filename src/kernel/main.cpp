@@ -17,6 +17,7 @@
 #include <Bus/USB/UHCI/UHCI.hpp>
 #include <System/Stack.hpp>
 #include <std/Heap/heap.hpp>
+#include <Drivers/USB/usb.hpp>
 
 _import void _init();
 
@@ -71,6 +72,18 @@ void kernel_init()
 	printf("ok\n");
 }
 
+//struct usb_config
+//{
+//	uint8_t  length;
+//	uint8_t  descType;
+//	uint16_t totalLength;
+//	uint8_t  interfaceCount;
+//	uint8_t  configValue;
+//	uint8_t  configIndex;
+//	uint8_t  attribs;
+//	uint8_t  maxPower;
+//};
+
 // https://github.com/Remco123/CactusOS/blob/master/kernel/src/system/components/pci.cpp
 
 // export "C" to prevent g++ from
@@ -100,10 +113,10 @@ _export void start(KernelInfo kernelInfo)
 	// get USB UHCI controller
 	USB::UHCIController controller(PCI::getPCIDevice(0x0C, 0x03));
 
-	controller.Init();
+	if(!controller.Init()) log_error("[UHCI] UHCI Controller initialization failed!\n");
 	controller.Setup();
 
-	const std::vector<USB::uhci_device>& devices = controller.getAllDevices();
+	const std::vector<USB::usb_device>& devices = controller.getAllDevices();
 
 	log_info("All Connected USB Devices: \n");
 	for(int i = 0; i < devices.size(); i++)
@@ -114,5 +127,19 @@ _export void start(KernelInfo kernelInfo)
 		log_info("\t\tSerial Number: %s\n", devices[i].serialNumber);
 	}
 
+	//usb_config configState;
+	//USB::request_packet reqPacket;
+	//reqPacket.requestType = USB_DEVICE_TO_HOST;
+	//reqPacket.request = USB_GET_DESC;
+	//reqPacket.value = (USB_DESC_CONFIG << 8) | 0;
+	//reqPacket.index = 0;
+	//reqPacket.size = sizeof(usb_config);
+	//bool status = controller.controlIn(devices[0], reqPacket, &configState, sizeof(usb_config));
+
+	USB::setController(controller);
+
+	USB::config_desc config0 = USB::getConfig(devices[0], 0);
+
+	printf("Finished Executing, Halting...!\n");
 	for (;;);
 }
