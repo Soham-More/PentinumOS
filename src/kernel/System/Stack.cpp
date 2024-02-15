@@ -1,6 +1,5 @@
 #include "Stack.hpp"
-#include <std/memory.h>
-#include <std/logger.h>
+#include <std/IO.hpp>
 
 bool traceStack = false;
 uint32_t* stack;

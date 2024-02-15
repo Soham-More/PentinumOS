@@ -1,6 +1,6 @@
 #include "usb.hpp"
-#include <std/string.h>
-#include <std/Heap/heap.hpp>
+#include <std/utils.hpp>
+#include <std/stdmem.hpp>
 
 namespace USB
 {

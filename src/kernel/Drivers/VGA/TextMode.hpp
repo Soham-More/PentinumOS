@@ -2,7 +2,7 @@
 #include <includes.h>
 
 #include <i686/x86.h>
-#include <std/memory.h>
+#include <std/stdmem.hpp>
 
 namespace VGA
 {

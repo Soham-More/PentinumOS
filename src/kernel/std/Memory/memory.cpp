@@ -1,9 +1,9 @@
 #include "memory.h"
 #include <includes.h>
-#include <std/Bitmap.hpp>
-#include <std/math.h>
+#include <std/Bitmap/Bitmap.hpp>
+#include <std/Utils/math.h>
 #include <i686/Exception.h>
-#include <std/stdio.h>
+#include <std/IO/stdio.h>
 
 // TODO:
 // add checks for Out of bound allocations
@@ -196,6 +196,9 @@ void* alloc_pages(size_t count)
 
         return nullptr;
     }
+
+    // release cached value
+    pagesAllocated.find_false();
 
     pagesAllocated.setBits(freePage, count, true);
 

@@ -4,7 +4,7 @@
 #include <i686/IRQ.h>
 #include <i686/x86.h>
 #include <i686/PIC.h>
-#include <std/logger.h>
+#include <std/IO.hpp>
 
 #define PS2_KEYBOARD_ACK 0xFA
 #define PS2_KEYBOARD_RESEND 0xFE

@@ -11,8 +11,8 @@ namespace std
             size_t bitmap_count = 0;
             uint8_t* bitmap = nullptr;
 
-            bool cachedFalseBit = false;
-            bool cached_FalseBit = false;
+            bool isFalseBitCached = false;
+            size_t cache_false_bit_pos = false;
         
         public:
             static const size_t npos = 0;

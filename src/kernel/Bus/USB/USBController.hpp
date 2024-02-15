@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Bus/USB/usbdefs.hpp>
-#include <std/vector.hpp>
+#include <std/utils.hpp>
 
 namespace USB
 {

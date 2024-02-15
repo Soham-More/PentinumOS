@@ -1,6 +1,6 @@
 #include "Bitmap.hpp"
 
-#include <std/math.h>
+#include <std/Utils/math.h>
 
 namespace std
 {
@@ -12,6 +12,7 @@ namespace std
         {
             bitmap[i] = 0xFF * (uint8_t)defaultValue;
         }
+        isFalseBitCached = false;
     }
 
     bool Bitmap::get(size_t bitIndex)
@@ -32,10 +33,10 @@ namespace std
 
     size_t Bitmap::find_false()
     {
-        if(cachedFalseBit)
+        if(isFalseBitCached)
         {
-            return cached_FalseBit;
-            cachedFalseBit = false;
+            isFalseBitCached = false;
+            return cache_false_bit_pos;
         }
 
         for(size_t i = 0; i < bitmap_size; i++)
@@ -65,7 +66,7 @@ namespace std
 
     size_t Bitmap::find_false_bits(size_t n, bool cache)
     {
-        cachedFalseBit = cache;
+        isFalseBitCached = cache;
 
         for(size_t i = 0; i < bitmap_size; i++)
         {
@@ -83,7 +84,7 @@ namespace std
                     {
                         if(cache)
                         {
-                            cached_FalseBit = i * 8 + offset;
+                            cache_false_bit_pos = i * 8 + offset;
                             cache = false;
                         }
 
@@ -108,7 +109,7 @@ namespace std
             ;
         }
 
-        cached_FalseBit = Bitmap::npos;
+        cache_false_bit_pos = Bitmap::npos;
 
         return Bitmap::npos;
     }

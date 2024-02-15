@@ -1,6 +1,6 @@
 #include "EHCI.hpp"
 
-#include <std/stdio.h>
+#include <std/IO.hpp>
 #include <Drivers/PIT.h>
 
 namespace EHCI

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 #include <i686/x86.h>
-#include <std/memory.h>
 
 // x, y coords to linear address
 

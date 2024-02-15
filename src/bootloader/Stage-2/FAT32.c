@@ -300,6 +300,15 @@ bool FAT32_initialise(DISK bootdisk, uint32_t partition_offset)
     root.firstCluster_low = bootDrive.bootSector.root_cluster % (1 << 16);
     root.firstCluster_high = bootDrive.bootSector.root_cluster >> 16;
 
+	printf("Values Dump:\n");
+	printf("\tRESV_SC: %u\n", bootDrive.bootSector.reserved_sector_count); // 52
+	printf("\tFAT_SectorsSize: %u\n", bootDrive.bootSector.sectors_per_fat); // 1008
+	printf("\tFS_DATA: %u\n", bootDrive.fs_data); // 2100
+	printf("\tFS_FAT: %u\n", bootDrive.fs_fat); // 84
+	printf("\tBYTES_CLUSTER: %u\n", bootDrive.bytes_per_cluster); // 512
+	printf("\tROOT_FC_LOW: %x\n", root.firstCluster_low); // 0x2
+	printf("\tROOT_FC_HIGH: %x\n", root.firstCluster_high); // 0x0
+
     root.attributes = FAT_DIRECTORY;
 
     // allocate only 1 sector, loading all sectors will make us run out of memory

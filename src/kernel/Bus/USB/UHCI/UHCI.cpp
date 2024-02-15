@@ -1,13 +1,11 @@
 #include "UHCI.hpp"
 
-#include <std/stdio.h>
+#include <std/IO.hpp>
 #include <Drivers/PIT.h>
 #include <i686/x86.h>
-#include <std/Heap/heap.hpp>
-#include <std/memory.h>
+#include <std/stdmem.hpp>
 #include <System/Paging.hpp>
-#include <std/logger.h>
-#include <std/math.h>
+#include <std/utils.hpp>
 
 #define GLOBAL_RESET_COUNT 5
 

@@ -1,7 +1,7 @@
 #include "IRQ.h"
 #include "PIC.h"
 #include "io.h"
-#include <std/logger.h>
+#include <std/IO.hpp>
 
 IRQHandler irq_handlers[16];
 

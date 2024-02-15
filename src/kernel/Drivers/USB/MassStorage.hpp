@@ -2,10 +2,11 @@
 
 #include <includes.h>
 #include <Drivers/USB/usb.hpp>
+#include <System/Disk.hpp>
 
 namespace USB
 {
-    struct msd_device : public usb_device
+    struct msd_device : public usb_device, public sys::Disk
     {
         interface_desc* interface;
         endpoint_desc* bulkIn;
@@ -30,6 +31,7 @@ namespace USB
         bool reset() const;
         bool fullReset() const;
 
+        uint32_t get_sector_size();
         bool read_sectors(uint32_t lba, size_t count, void* buffer);
     };
 }

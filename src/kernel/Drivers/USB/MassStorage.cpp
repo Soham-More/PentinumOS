@@ -1,6 +1,6 @@
 #include "MassStorage.hpp"
 
-#include <std/logger.h>
+#include <std/IO.hpp>
 
 #define SCSI_TEST_UNIT_READY        0x00
 #define SCSI_REQUEST_SENSE          0x03
@@ -460,6 +460,10 @@ namespace USB
         return true;
     }
 
+    uint32_t msd_device::get_sector_size()
+    {
+        return blockSize;
+    }
     bool msd_device::read_sectors(uint32_t lba, size_t count, void* buffer)
     {
         CommandBlockWrapper sendBuf = SCSIprepareCommandBlock(use16Base ? SCSI_READ_16 : SCSI_READ_10, blockSize, lba, count);

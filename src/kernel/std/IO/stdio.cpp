@@ -5,7 +5,7 @@
 
 #include <i686/x86.h>
 #include <Drivers/Drivers.h>
-#include <std/memory.h>
+#include <std/stdmem.hpp>
 
 #define IO_MODE_OUT 0
 #define IO_MODE_IN  1

@@ -1,7 +1,6 @@
 #include "ISR.h"
 
-#include <std/stdio.h>
-#include <std/logger.h>
+#include <std/IO.hpp>
 #include <System/Stack.hpp>
 #include "isr_gen.h"
 #include "IDT.h"

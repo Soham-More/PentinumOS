@@ -1,7 +1,7 @@
 #include "PS2.hpp"
 
 #include <i686/x86.h>
-#include <std/logger.h>
+#include <std/IO.hpp>
 #include <Drivers/PIT.h>
 
 #define PS2_CCB_READ 0x20

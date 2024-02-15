@@ -3,7 +3,7 @@
 #include <i686/IRQ.h>
 #include <i686/PIC.h>
 #include <i686/x86.h>
-#include <std/stdio.h>
+#include <std/IO.hpp>
 
 static volatile uint32_t PIT_ticks_till_timeout = 0;
 static volatile bool PIT_timer_enabled = false;

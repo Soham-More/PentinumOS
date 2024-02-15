@@ -1,10 +1,9 @@
 #include "PCI.hpp"
 
-#include <std/stdio.h>
-#include <std/logger.h>
+#include <std/IO.hpp>
 #include <i686/x86.h>
-#include <std/vector.hpp>
-#include <std/memory.h>
+#include <std/utils.hpp>
+#include <std/stdmem.hpp>
 #include <System/Paging.hpp>
 
 namespace PCI

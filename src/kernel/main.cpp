@@ -1,6 +1,7 @@
+#include <std/IO.hpp>
+#include <std/stdmem.hpp>
+#include <std/utils.hpp>
 #include <stdint.h>
-#include <std/memory.h>
-#include <std/stdio.h>
 #include <i686/GDT.h>
 #include <i686/IDT.h>
 #include <i686/ISR.h>
@@ -8,15 +9,12 @@
 #include <i686/PIC.h>
 #include <Drivers/Drivers.h>
 #include <Drivers/PIT.h>
-#include <std/memory.h>
 #include <Bus/PCI/PCI.hpp>
 #include <System/Paging.hpp>
 #include <System/Boot.h>
-#include <std/logger.h>
-#include <std/vector.hpp>
 #include <Bus/USB/UHCI/UHCI.hpp>
 #include <System/Stack.hpp>
-#include <std/Heap/heap.hpp>
+#include <Filesystems/FAT32/FAT32.hpp>
 
 _import void _init();
 
@@ -71,6 +69,16 @@ void kernel_init()
 	printf("ok\n");
 }
 
+struct Partition
+{
+	uint8_t isActive;
+	uint8_t firstCHS[3];
+	uint8_t type;
+	uint8_t lastCHS[3];
+	uint32_t lba;
+	uint32_t sector_count;
+} _packed;
+
 // https://github.com/Remco123/CactusOS/blob/master/kernel/src/system/components/pci.cpp
 
 // export "C" to prevent g++ from
@@ -114,24 +122,24 @@ _export void start(KernelInfo kernelInfo)
 		log_info("\t\tSerial Number: %s\n", devices[i].serialNumber);
 	}
 
-	//usb_config configState;
-	//USB::request_packet reqPacket;
-	//reqPacket.requestType = USB_DEVICE_TO_HOST;
-	//reqPacket.request = USB_GET_DESC;
-	//reqPacket.value = (USB_DESC_CONFIG << 8) | 0;
-	//reqPacket.index = 0;
-	//reqPacket.size = sizeof(usb_config);
-	//bool status = controller.controlIn(devices[0], reqPacket, &configState, sizeof(usb_config));
-
 	USB::setController(controller);
 
 	USB::msd_device storage_device;
-	char MBR_sector[1024];
 
 	storage_device.init(devices[0]);
-	storage_device.read_sectors(0, 1, MBR_sector);
-	
-	printf("%s", MBR_sector + 0xB5);
+	storage_device.load_partitions();
+
+	sys::partition activePartition = storage_device.getPartition(0);
+
+	fs::FAT32 fat32;
+	fat32.initialise(&storage_device, activePartition.lba);
+
+	fs::FILE* file = fat32.open("text.txt");
+
+	for(size_t i = 0; i < fat32.size(file); i++)
+	{
+		putc(fat32.getc(file));
+	}
 
 	printf("Finished Executing, Halting...!\n");
 	for (;;);
