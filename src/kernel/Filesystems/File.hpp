@@ -1,39 +1,12 @@
 #pragma once
 
 #include <includes.h>
+#include <std/utils.hpp>
 
 #define MAX_OPEN_FILES 0x200
 
 namespace fs
 {
-    struct DirectoryEntry
-    {
-        uint8_t filename[11];
-        uint8_t attributes;
-        uint8_t reserved_winNT;
-        uint8_t creationTime_ds;
-        uint16_t creationTime;
-        uint16_t creationDate;
-        uint16_t lastAccessDate;
-        uint16_t firstCluster_high; // useless for FAT12/16
-        uint16_t lastModifyTime;
-        uint16_t lastModifyDate;
-        uint16_t firstCluster_low;
-        uint32_t fileSize;
-    } _packed;
-
-    enum File_Attributes
-    {
-        FAT_INVALID_ENTRY = 0x00,
-        FAT_READ_ONLY     = 0x01,
-        FAT_HIDDEN        = 0x02,
-        FAT_SYSTEM        = 0x04,
-        FAT_VOLUME_ID     = 0x08,
-        FAT_DIRECTORY     = 0x10,
-        FAT_ARCHIVE       = 0x20,
-        FAT_LFN           = FAT_READ_ONLY | FAT_HIDDEN | FAT_SYSTEM | FAT_VOLUME_ID
-    };
-
     enum SEEK_MODE
     {
         FAT_SEEK_BEGINNING = 0x00,
@@ -42,11 +15,37 @@ namespace fs
 
     struct FILE
     {
-        uint16_t sector_handle;           // memory allocated to this file
-        uint32_t currentCluster;          // current cluster
-        uint32_t clusterPosition;         // position wrt cluster begin
-        uint32_t position;                // position in file
-        DirectoryEntry directory;         // entry data in directory
+        size_t deviceID;
+        size_t partitionID;
+        size_t filessystemID;
+    };
+
+    class FileSystem
+    {
+        public:
+            virtual bool initialise(sys::Disk* fsdisk, uint32_t partition_offset) = 0;
+            virtual bool search(const char* filename) = 0;
+
+            // Open a file
+            virtual FILE* open(const std::string& filename) = 0;
+
+            // Get a charecter from a file
+            virtual char getc(FILE* file) = 0;
+
+            // get if current postion is EOF
+            virtual bool isEOF(FILE* file) = 0;
+
+            // size for buffer larger than file will stop reading before buffer size limit is reached
+            virtual bool read(FILE* file, char* buffer, uint32_t size) = 0;
+
+            // get file size
+            virtual uint32_t size(FILE* file) = 0;
+
+            // sekk to position
+            virtual bool seek(FILE* file, uint32_t value, uint8_t seek_mode) = 0;
+
+            // Close a opened file
+            virtual void close(FILE* file) = 0;
     };
 }
 

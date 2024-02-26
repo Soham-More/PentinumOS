@@ -97,18 +97,18 @@ namespace fs
 		return disk->read_sectors(cluster_lba, bootSector.sectors_per_cluster, m_freeCluster);
 	}
 	
-	bool FAT32::isFileClosed(FILE * file)
+	bool FAT32::isFileClosed(fileFAT32 * file)
 	{
 		return file->sector_handle == UINT16_MAX;
 	}
 
 	// Checks if the increment in position valid
-	bool FAT32::isValidIncrement(FILE * file, uint32_t inc)
+	bool FAT32::isValidIncrement(fileFAT32 * file, uint32_t inc)
 	{
 		return (file->clusterPosition + inc) < bytes_per_cluster && (file->position + inc) < file->directory.fileSize;
 	}
 
-	void FAT32::toStringFAT32(std::string& dir_name)
+	std::string FAT32::toStringFAT32(const std::string& dir_name)
 	{
 		std::vector<std::string> filenames;
 		dir_name.split('.', filenames);
@@ -122,11 +122,11 @@ namespace fs
 			filenames[1].to_upper();
 			newFilename += filenames[1];
 
-			dir_name = newFilename;
-			return;
+			return newFilename;
 		}
 
-		dir_name.to_upper();
+		filenames[0].to_upper();
+		return filenames[0];
 	}
 
 	// Searches a directory in a given directory
@@ -178,7 +178,7 @@ namespace fs
 		// Filename not founud
 		return false;
 	}
-	DirectoryEntry FAT32::getFileEntry(const std::string& path)
+	FAT32::DirectoryEntry FAT32::getFileEntry(const std::string& path)
 	{
 		std::vector<std::string> directoryStructure;
 		path.split('/', directoryStructure);
@@ -192,7 +192,7 @@ namespace fs
 		for(uint16_t i = 0; i < directoryStructure.size(); i++)
 		{
 			std::string& dir_name = directoryStructure[i];
-			toStringFAT32(dir_name);
+			dir_name = toStringFAT32(dir_name);
 
 			if(!searchEntry(currentEntry, dir_name, nextEntry))
 			{
@@ -248,7 +248,7 @@ namespace fs
 			return false;
 		}
 
-		open_files = (fs::FILE*)alloc_pages(bytesToPages(MAX_OPEN_FILES * sizeof(FILE)));
+		open_files = (fileFAT32*)alloc_pages(bytesToPages(MAX_OPEN_FILES * sizeof(fileFAT32)));
 
 		// NOTE: m_freeCluster must be allocated right after open_file_clusters alloc
 		size_t bytes_per_cluster = bootSector.sectors_per_cluster * bootSector.bytes_per_sector;
@@ -292,7 +292,7 @@ namespace fs
 			}
 		}
 
-		FILE* currentFile = (open_files + file_handle);
+		fileFAT32* currentFile = (open_files + file_handle);
 
 		currentFile->directory = getFileEntry(filename);
 
@@ -317,8 +317,10 @@ namespace fs
 		return currentFile;
 	}
 
-	char FAT32::getc(FILE * file)
+	char FAT32::getc(FILE* _file)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
+
 		if(isFileClosed(file))
 		{
 			log_error("[FS][FAT32] Reading from a closed file!\n");
@@ -365,8 +367,10 @@ namespace fs
 
 		return read_value;
 	}
-	bool FAT32::read(FILE * file, char* buffer, uint32_t size)
+	bool FAT32::read(FILE * _file, char* buffer, uint32_t size)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
+
 		// If we are accesing a closed file, then give an error
 		if(isFileClosed(file))
 		{
@@ -394,16 +398,20 @@ namespace fs
 
 		return true;
 	}
-	bool FAT32::isEOF(FILE* file)
+	bool FAT32::isEOF(FILE* _file)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
 		return file->position > file->directory.fileSize;
 	}
-	uint32_t FAT32::size(FILE* file)
+	uint32_t FAT32::size(FILE* _file)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
 		return file->directory.fileSize;
 	}
-	bool FAT32::seek(FILE* file, uint32_t value, uint8_t seek_mode)
+	bool FAT32::seek(FILE* _file, uint32_t value, uint8_t seek_mode)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
+
 		if(seek_mode == FAT_SEEK_CURRENT)
 		{
 			// seek till after EOF
@@ -508,8 +516,9 @@ namespace fs
 		log_warn("[FS][FAT32] Invalid Seek Mode!\n");
 		return false;
 	}
-	void FAT32::close(FILE * file)
+	void FAT32::close(FILE * _file)
 	{
+		fileFAT32* file = reinterpret_cast<fileFAT32*>(_file);
 		file->sector_handle = UINT16_MAX;
 	}
 

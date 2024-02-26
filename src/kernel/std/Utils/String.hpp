@@ -57,7 +57,5 @@ namespace std
     string operator+(const string& lhs, const char& rhs);
     string operator+=(string& lhs, const string& rhs);
     string operator+=(string& lhs, const char& rhs);
-
-    
 }
 

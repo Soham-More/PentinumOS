@@ -69,16 +69,6 @@ void kernel_init()
 	printf("ok\n");
 }
 
-struct Partition
-{
-	uint8_t isActive;
-	uint8_t firstCHS[3];
-	uint8_t type;
-	uint8_t lastCHS[3];
-	uint32_t lba;
-	uint32_t sector_count;
-} _packed;
-
 // https://github.com/Remco123/CactusOS/blob/master/kernel/src/system/components/pci.cpp
 
 // export "C" to prevent g++ from
