@@ -4,6 +4,7 @@
 #include <std/Bitmap/initialiserList.hpp>
 #include <std/stdmem.hpp>
 #include <std/Utils/math.h>
+#include <std/Generics/references.hpp>
 
 namespace std
 {
@@ -23,6 +24,18 @@ namespace std
                 data = (T*)alloc_cp((const void*)list.begin(), list.size() * sizeof(T));
                 dataSize = list.size();
                 pageSize = DivRoundUp(dataSize, PAGE_SIZE);
+            }
+            vector(const std::vector<T>& list)
+            {
+                data = (T*)alloc_cp((const void*)list.data, list.dataSize * sizeof(T));
+                dataSize = list.dataSize;
+                pageSize = list.pageSize;
+            }
+            vector(std::vector<T>&& list)
+            {
+                data = list.data; list.data = nullptr;
+                dataSize = list.dataSize;
+                pageSize = list.pageSize;
             }
 
             void push_back(const T& item)
@@ -56,14 +69,13 @@ namespace std
                     pageSize++;
                 }
             }
-            void push_back(T&& item) &
+            void push_back(T&& item)
             {
                 // if data is nullptr, allocate a page
                 if(data == nullptr)
                 {
                     data = reinterpret_cast<T*>(alloc_page());
-                    data[dataSize] = static_cast<T&&>(T()); // construct the object
-                    data[dataSize] = item;
+                    data[dataSize] = std::move(item);
                     dataSize = 1;
                     pageSize = 1;
 
@@ -73,50 +85,37 @@ namespace std
                 // if size is less than pages allocated then, add element
                 if(dataSize < pageSize * PAGE_SIZE)
                 {
-                    data[dataSize] = static_cast<T&&>(T()); // construct the object
-                    data[dataSize] = item;
+                    data[dataSize] = std::move(item);
                     dataSize++;
                 }
                 // else relloc memory
                 else
                 {
                     data = reinterpret_cast<T*>(realloc_pages(data, pageSize, pageSize + 1));
-                    data[dataSize] = static_cast<T&&>(T()); // construct the object
-                    data[dataSize] = item;
+                    data[dataSize] = std::move(item);
                     dataSize++;
                     pageSize++;
                 }
             }
-            void push_back(T&& item) &&
+
+            // remove item at the end of list
+            // then return a copy of it
+            T pop_back()
             {
-                // if data is nullptr, allocate a page
-                if(data == nullptr)
-                {
-                    data = reinterpret_cast<T*>(alloc_page());
-                    data[dataSize] = static_cast<T&&>(item);
-                    dataSize = 1;
-                    pageSize = 1;
-
-                    return;
-                }
-
-                // if size is less than pages allocated then, add element
-                if(dataSize < pageSize * PAGE_SIZE)
-                {
-                    data[dataSize] = static_cast<T&&>(item);
-                    dataSize++;
-                }
-                // else relloc memory
-                else
-                {
-                    data = reinterpret_cast<T*>(realloc_pages(data, pageSize, pageSize + 1));
-                    data[dataSize] = static_cast<T&&>(item);
-                    dataSize++;
-                    pageSize++;
-                }
+                dataSize--;
+                return data[dataSize];
             }
 
+            // get item at the end of the list
+            T& back()
+            {
+                return data[dataSize - 1];
+            }
+
+            // get size of vector
             size_t size() const { return dataSize; }
+            // get if the vector is empty
+            bool empty() const { return dataSize == 0; }
 
             // TODO: Throw exception if index is not in range
             T& operator[](uint32_t index) const

@@ -2,6 +2,7 @@
 
 #include <includes.h>
 #include <std/utils.hpp>
+#include <System/Disk.hpp>
 
 #define MAX_OPEN_FILES 0x200
 

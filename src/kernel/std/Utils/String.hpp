@@ -8,8 +8,8 @@ namespace std
     class string
     {
         private:
-            char* cstr;
-            size_t bsize;
+            char* strBuffer;
+            size_t byteSize;
 
         public:
             static const size_t npos = -1;
@@ -45,6 +45,7 @@ namespace std
             friend string operator+(const string& lhs, const char& rhs);
             friend string operator+=(string& lhs, const string& rhs);
             friend string operator+=(string& lhs, const char& rhs);
+            friend bool operator==(const string& lhs, const string& rhs);
             
             char& operator[](size_t index) const;
             string operator=(const string& str);
@@ -57,5 +58,6 @@ namespace std
     string operator+(const string& lhs, const char& rhs);
     string operator+=(string& lhs, const string& rhs);
     string operator+=(string& lhs, const char& rhs);
+    bool operator==(const string& lhs, const string& rhs);
 }
 
