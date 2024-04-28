@@ -24,29 +24,31 @@ namespace fs
     class FileSystem
     {
         public:
-            virtual bool initialise(sys::Disk* fsdisk, uint32_t partition_offset) = 0;
-            virtual bool search(const char* filename) = 0;
+            FileSystem(){;}
+            bool initialise(sys::Disk* fsdisk, uint32_t partition_offset){;}
+            bool search(const std::string& filename){;}
 
             // Open a file
-            virtual FILE* open(const std::string& filename) = 0;
+            FILE* open(const std::string& filename){;};
 
             // Get a charecter from a file
-            virtual char getc(FILE* file) = 0;
+            char getc(FILE* file){;}
 
             // get if current postion is EOF
-            virtual bool isEOF(FILE* file) = 0;
+            bool isEOF(FILE* file){;}
 
             // size for buffer larger than file will stop reading before buffer size limit is reached
-            virtual bool read(FILE* file, char* buffer, uint32_t size) = 0;
+            bool read(FILE* file, char* buffer, uint32_t size){;}
 
             // get file size
-            virtual uint32_t size(FILE* file) = 0;
+            uint32_t size(FILE* file){;}
 
             // sekk to position
-            virtual bool seek(FILE* file, uint32_t value, uint8_t seek_mode) = 0;
+            bool seek(FILE* file, uint32_t value, uint8_t seek_mode){;}
 
             // Close a opened file
-            virtual void close(FILE* file) = 0;
+            void close(FILE* file){;}
+            ~FileSystem(){;}
     };
 }
 

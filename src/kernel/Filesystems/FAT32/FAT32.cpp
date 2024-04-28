@@ -208,6 +208,24 @@ namespace fs
 		return *currentEntry;
 	}
 
+	bool FAT32::detect(sys::Disk* fsdisk, uint32_t partition_offset)
+	{
+		void* m_freeSector = alloc_pages(1);
+		FAT32_BS bootSector;
+
+		// load bootsector on active partition
+		if(!fsdisk->read_sectors(partition_offset, 1, m_freeSector))
+		{
+			return false;
+		}
+
+		memcpy(m_freeSector, &bootSector, sizeof(FAT32_BS));
+
+		if(bootSector.signature == 0x28 || bootSector.signature == 0x29) return true;
+
+		return false;
+	}
+
 	// FAT API
 	bool FAT32::initialise(sys::Disk* fsdisk, uint32_t partition_offset)
 	{
@@ -258,7 +276,7 @@ namespace fs
 
 		return true;
 	}
-	bool FAT32::search(const char* filepath)
+	bool FAT32::search(const std::string& filepath)
 	{
 		return getFileEntry(filepath).attributes != FAT_INVALID_ENTRY;
 	}

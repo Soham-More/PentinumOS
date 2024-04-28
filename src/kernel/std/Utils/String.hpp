@@ -41,6 +41,9 @@ namespace std
             // changes all charecter to uppercase
             void to_upper();
 
+            // add charecters in given range
+            string filter(size_t start, size_t end = (size_t)-1, size_t step = 1) const;
+
             friend string operator+(const string& lhs, const string& rhs);
             friend string operator+(const string& lhs, const char& rhs);
             friend string operator+=(string& lhs, const string& rhs);

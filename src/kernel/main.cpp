@@ -15,10 +15,14 @@
 #include <Bus/USB/UHCI/UHCI.hpp>
 #include <System/Stack.hpp>
 #include <Filesystems/FAT32/FAT32.hpp>
+#include <Filesystems/Filesystems.hpp>
 
 _import void _init();
 
-extern "C" void __cxa_pure_virtual(){;}
+extern "C" void __cxa_pure_virtual()
+{
+	printf("Error: Called virtual function\n");
+}
 
 extern "C" int __cxa_atexit(void (*destructor) (void *), void *arg, void *dso)
 {
@@ -118,7 +122,7 @@ _export void start(KernelInfo kernelInfo)
 
 	storage_device.init(devices[0]);
 	storage_device.load_partitions();
-
+/*
 	sys::partition activePartition = storage_device.getPartition(0);
 
 	fs::FAT32 fat32;
@@ -129,6 +133,16 @@ _export void start(KernelInfo kernelInfo)
 	for(size_t i = 0; i < fat32.size(file); i++)
 	{
 		putc(fat32.getc(file));
+	}
+*/
+
+	fs::register_disk(storage_device);
+
+	fs::FILE* file = fs::open("sdap0/text.txt");
+
+	for(size_t i = 0; i < fs::size(file); i++)
+	{
+		putc(fs::getc(file));
 	}
 
 	printf("Finished Executing, Halting...!\n");

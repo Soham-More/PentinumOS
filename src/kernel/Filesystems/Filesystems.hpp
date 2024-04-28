@@ -6,12 +6,10 @@
 
 namespace fs
 {
-    void initialise_filesystem();
-
     void register_disk(sys::Disk& disk);
 
     // Search a file
-    bool search(const char* filename);
+    bool search(const std::string& filename);
 
     // Open a file
     FILE* open(const std::string& filename);

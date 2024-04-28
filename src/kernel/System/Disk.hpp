@@ -8,7 +8,7 @@ namespace sys
     {
         uint8_t  isActive;
         uint8_t  firstCHS[3];
-        uint8_t  type;
+        uint8_t  fsID;
         uint8_t  lastCHS[3];
         uint32_t lba;
         uint32_t sector_count;

@@ -33,7 +33,7 @@ namespace fs
                 uint32_t        sectors_per_fat;
                 uint16_t        flags;
                 uint16_t        version;
-                uint64_t        root_cluster;
+                uint32_t        root_cluster;
                 uint16_t        sectorFSInfo;
                 uint16_t        backupBootSector;
                 uint8_t         reserved[12];
@@ -125,8 +125,10 @@ namespace fs
             bool searchEntry(DirectoryEntry* currentDir, std::string& dir_name, DirectoryEntry* dir);
             DirectoryEntry getFileEntry(const std::string& path);
         public:
+            static bool detect(sys::Disk* fsdisk, uint32_t partition_offset);
+
             bool initialise(sys::Disk* fsdisk, uint32_t partition_offset);
-            bool search(const char* filename);
+            bool search(const std::string& filename);
 
             // Open a file
             FILE* open(const std::string& filename);

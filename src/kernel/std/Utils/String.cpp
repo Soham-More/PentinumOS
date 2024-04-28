@@ -170,6 +170,20 @@ namespace std
             strBuffer[i] = toUpper(strBuffer[i]);
         }
     }
+    string string::filter(size_t start, size_t end, size_t step) const
+    {
+        if(end > byteSize) end = byteSize;
+        if(start >= byteSize) return "";
+
+        string result;
+
+        for(size_t i = start; i < end; i += step)
+        {
+            result += strBuffer[i];
+        }
+
+        return result;
+    }
 
     string::~string()
     {
