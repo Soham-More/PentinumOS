@@ -7,7 +7,7 @@ An OS that targets an old Compaq computer featuring a Pentinum 4 processor
 - Filesystem support [Basic]
   - FAT32 [Basic, Read Only]
 - USB Support [Basic]
-  - UHCI
+  - USB 2.0(UHCI)
 - USB Devices [Basic]
   - Mass Storage Device
 - Boot from USB [Done, Default]
