@@ -9,6 +9,8 @@ all: floppy_image
 
 include buildScripts/toolchain.mk
 
+SHELL := /bin/bash
+
 dbuild:
 	$(MAKE) clean
 	$(MAKE) OPT_CFLAGS=-Dr_Debug
@@ -23,7 +25,7 @@ $(BUILD_DIR)/image.img: bootloader kernel mount_dir
 
 	@chmod a+rwx build/image.img
 
-	@losetup -a
+	@losetup -a | grep $(WORKSPACE_DIR) | cat
 
 mount_dir:
 	@mkdir -p $(IMG_MOUNT)
@@ -52,7 +54,7 @@ $(BUILD_DIR)/stage2.bin: always
 kernel: $(BUILD_DIR)/kernel.elf
 
 $(BUILD_DIR)/kernel.elf: always
-	@$(MAKE) -C $(SRC_DIR)/kernel BUILD_DIR=$(abspath $(BUILD_DIR))
+	@$(MAKE) -C $(SRC_DIR)/pos-kernel BUILD_DIR=$(abspath $(BUILD_DIR))
 
 always:
 	@mkdir -p $(BUILD_DIR)

@@ -10,11 +10,19 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
+            //"externalConsole": true,
             "MIMode": "gdb",
+            "miDebuggerArgs": "-nx",
+            //"preLaunchTask": "Run QEMU",
             "setupCommands": [
                 {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable GEF",
+                    "text": "-nx",
                     "ignoreFailures": true
                 },
                 {
@@ -23,7 +31,7 @@
                     "ignoreFailures": false
                 }
             ],
-            "miDebuggerPath": "gdb"
+            "miDebuggerPath": "/bin/gdb"
         }
     ],
     "version": "2.0.0"

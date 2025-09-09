@@ -1,6 +1,18 @@
 # PentinumOS
 An OS that targets an old Compaq computer featuring a Pentinum 4 processor
 
+# Building
+To build the source code, you need to install the toolchain:
+```bash
+sudo apt-get install texinfo
+apt-get install libmpc-dev
+make toolchain
+```
+Then
+```bash
+make
+```
+
 # Current Features
 - PS/2 Mouse and Keyboard Support[Done]
 - PCI Device Enumeration [Done]

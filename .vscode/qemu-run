@@ -1,0 +1,6 @@
+#!/bin/sh
+
+qemu-system-i386 -s -S -m 128 \
+                        -drive if=none,id=stick,format=raw,file=build/image.img \
+                        -device piix3-usb-uhci,id=uhci                             \
+                        -device usb-storage,bus=uhci.0,drive=stick

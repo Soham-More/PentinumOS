@@ -8,5 +8,11 @@ install:
 	@cp -r $(ROOT_FILES)/* $(IMG_MOUNT)
 	@cp $(BUILD_DIR)/kernel.elf $(IMG_MOUNT)
 
+	@sync -f $(IMG_MOUNT)
+	@sleep 0.5
+
+	@sync -f $(IMG_MOUNT)
+	@sleep 1
+
 	@umount $(IMG_MOUNT)
 	@losetup -d $(DEVICE)
