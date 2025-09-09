@@ -81,11 +81,13 @@ void _cdecl start(uint8_t bootDrive, void* e820_mmap)
 	//}
 	//printf("%s", buffer);
 
+	printf("Loading Kernel... ");
 	if(!loadELF("kernel.elf", &kernelEntry, &kernelMap))
 	{
 		printf("ERROR: Failed to load kernel");
 		goto exit;
 	}
+	printf("Ok\n");
 
 	uint64_t memSize = getMemorySize(e820_mmap);
 
@@ -103,6 +105,8 @@ void _cdecl start(uint8_t bootDrive, void* e820_mmap)
 	kernelInfo.pageInfo = &pInfo;
 
 	KernelStart beginKernel = (KernelStart)kernelEntry;
+
+	printf("Jumping to kernel\n");
 
 	beginKernel(kernelInfo);
 

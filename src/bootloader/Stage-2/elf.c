@@ -190,7 +190,7 @@ bool loadELF(char* elfFilePath, void** entryPoint, void** kernelMap)
 
     for(uint32_t i = 0; i < phTableEntryCount; i++)
     {
-        //printf("Loading Segment: type=%d, foffset=%d, vaddr=%x, fsize=%d, msize=%d\n", pHeaders[i].segmentType, pHeaders[i].segmentOffset, pHeaders[i].segmentVirtualaddress, pHeaders[i].segmentFileSize, pHeaders[i].segmentMemorySize);
+        printf("\nLoading Segment: type=%d, foffset=%d, vaddr=%x, fsize=%d, msize=%d\n", pHeaders[i].segmentType, pHeaders[i].segmentOffset, pHeaders[i].segmentVirtualaddress, pHeaders[i].segmentFileSize, pHeaders[i].segmentMemorySize);
 
         if(pHeaders[i].segmentType == ELF_PROGRAM_TYPE_LOAD)
         {

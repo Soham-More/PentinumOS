@@ -84,6 +84,8 @@ uint32_t loadNextCluster(uint16_t sector_handle, uint32_t currentCluster)
         {
             return FAT32_CLUSTER_ERROR;
         }
+
+		currentFATSector = fat_sector;
     }
     
     // ignore the high 4 bits.
@@ -438,6 +440,8 @@ char FAT32_getc(FILE * file)
 		//printf("\nLoading next cluster\n");
 		uint16_t nextCluster = loadNextCluster(file->sector_handle, file->currentCluster);
 
+		//printf("new cluster: 0x%x\n", nextCluster);
+
 		// this was last cluster, i.e end of file
 		if(nextCluster == FAT32_CLUSTER_END)
 		{
@@ -576,12 +580,18 @@ bool FAT32_seek(FILE* file, uint32_t value, uint8_t seek_mode)
 		uint32_t clusterOffset = value / bootDrive.bytes_per_cluster;
 		uint32_t clusterSeek   = value % bootDrive.bytes_per_cluster;
 
+		//printf("Offset: 0x%x, Seek: 0x%x\n", clusterOffset, clusterSeek);
+		
 		// start from first cluster
 		uint32_t clusterID = (file->directory.firstCluster_high << 16) + file->directory.firstCluster_low;
+		//printf("first cluster: 0x%x\n", clusterID);
 
 		for(uint32_t loadedClusters = 0; loadedClusters < clusterOffset; loadedClusters++)
 		{
+			uint32_t prevID = clusterID;
 			clusterID = getNextCluster(clusterID);
+
+			//if(clusterID != prevID + 1) printf("Detected jump: prev=0x%x next=0x%x\n", prevID, clusterID);
 
 			// will only happen if file is corrupted
 			if(clusterID == FAT32_CLUSTER_END)
@@ -600,6 +610,7 @@ bool FAT32_seek(FILE* file, uint32_t value, uint8_t seek_mode)
 
 		// load this cluster if it's not already loaded
 		if(file->currentCluster != clusterID) loadCluster(file->sector_handle, clusterID);
+		//printf("last cluster: 0x%x\n", clusterID);
 
 		// clusterID contains the cluster in which we seeked
 		file->currentCluster = clusterID;
