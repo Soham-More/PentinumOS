@@ -24,6 +24,7 @@ make
   - Mass Storage Device
 - Boot from USB [Done, Default]
 - Heap Memory Management [Basic]
+- VFS [Basic]
 
 # Planned Features
 - Task Scheduler and Multi Tasking
@@ -31,8 +32,7 @@ make
 - USB Devices
   - Mouse
   - Keyboard
-- Better Stack Trace during a crash
 
 # Known Bugs
-- Uncommenting a printf line in elf.c in bootloader code causes UHCI driver in kernel to crash.
+- Uncommenting a printf line in elf.c in bootloader code causes UHCI driver in kernel to crash. [Fixed]
 
