@@ -54,7 +54,7 @@ $(BUILD_DIR)/stage2.bin: always
 kernel: $(BUILD_DIR)/kernel.elf
 
 $(BUILD_DIR)/kernel.elf: always
-	@$(MAKE) -C $(SRC_DIR)/pos-kernel BUILD_DIR=$(abspath $(BUILD_DIR))
+	@$(MAKE) -C $(SRC_DIR)/c-kernel BUILD_DIR=$(abspath $(BUILD_DIR))
 
 always:
 	@mkdir -p $(BUILD_DIR)
@@ -62,7 +62,7 @@ always:
 clean:
 	@$(MAKE) -C $(SRC_DIR)/bootloader/Stage-1 BUILD_DIR=$(abspath $(BUILD_DIR)) clean
 	@$(MAKE) -C $(SRC_DIR)/bootloader/Stage-2 BUILD_DIR=$(abspath $(BUILD_DIR)) clean
-	@$(MAKE) -C $(SRC_DIR)/kernel BUILD_DIR=$(abspath $(BUILD_DIR)) clean
+	@$(MAKE) -C $(SRC_DIR)/c-kernel BUILD_DIR=$(abspath $(BUILD_DIR)) clean
 	@rm -rf $(BUILD_DIR)
 	@echo "Removed: " $(BUILD_DIR)
 

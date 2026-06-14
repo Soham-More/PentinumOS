@@ -1,15 +1,6 @@
-#pragma once
+#include "i686.h"
 
-#include <io/io.h>
-#include <stdint.h>
-#include <arch/GDT/GDT.h>
-#include <arch/IDT/IDT.h>
-#include <arch/ISR/ISR.h>
-#include <arch/IRQ/IRQ.h>
-#include <arch/IRQ/PIC.h>
-#include <arch/x86.h>
-
-inline void initialize_i686()
+void initialize_i686()
 {
 	//printf("loading GDT...  ");
 	i686_init_gdt();
@@ -27,3 +18,5 @@ inline void initialize_i686()
 	init_irq();
 	//printf("ok\n");
 }
+
+
