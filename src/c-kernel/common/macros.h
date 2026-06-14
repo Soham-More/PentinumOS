@@ -4,7 +4,7 @@
 #define PTR_DIFF_I32(x, y) (i32)(x - y)
 
 // bit twiddling
-#define MIX_MASKED(target, flags, mask) ((target) & (~mask)) | ((flags) & (mask))
+#define SET_MASKED_FLAGS(mask, value, set_flags) ((value) & (~mask)) | ((set_flags) & (mask))
 
 // debug behaviour
 #define VALIDATE(x, ret) \

@@ -5,6 +5,11 @@
 #include "priv.h"
 
 typedef struct heap_allocator_t heap_allocator_t;
+typedef struct page_alloc_info_t {
+    err_t error;
+    void* memory;
+    usize size;
+} page_alloc_info_t;
 
 // heap allocator
 
@@ -31,12 +36,12 @@ void free(heap_allocator_t* heap_allocator, void* ptr);
 err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mmap);
 
 // allocate page_cnt pages(may allocate more)
-void* allocate_pages(usize page_cnt);
+const page_alloc_info_t allocate_pages(usize page_cnt);
 
 // allocate page_cnt pages(may allocate more) on memory not on ram
 // if status is PNODE_BLK_MAPPED - then mark allocated pages as BLK_MAPPED
 // if status is PNODE_IO_MAPPED - then mark allocated pages as IO_MAPPED
-void* allocate_mapped_pages(u16 status, usize page_cnt);
+const page_alloc_info_t allocate_mapped_pages(u16 status, usize page_cnt);
 
 void log_page_allocator_status();
 

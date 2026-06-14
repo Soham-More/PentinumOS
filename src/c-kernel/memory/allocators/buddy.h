@@ -15,7 +15,6 @@ typedef struct ba_node_t {
 } ba_node_t;
 
 u8 get_highest_setbit_loc(u32 value);
-void pnode_set(ba_node_t* target, u8 flag);
 
 err_t ba_validate_node(ba_node_t* node);
 
@@ -44,5 +43,5 @@ ba_node_t* ba_search(u8 m_order, u16 search_flag);
 ba_node_t* ba_find_node(ptr_t address, i8 req_order);
 
 // mark some pages with flags
-err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags);
+err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags, bool bypass, bool fail_silently);
 

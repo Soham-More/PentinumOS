@@ -14,7 +14,7 @@ static u32 putc_buffer_pos = 0;
 
 void clrscr() { con_clear(); }
 
-void flush() {
+void flush_terminal() {
     con_write(putc_buffer, putc_buffer_pos);
     putc_buffer_pos = 0;
 }
@@ -30,7 +30,7 @@ void putc(char ch) {
 }
 
 void puts(const char* str) {
-    flush();
+    flush_terminal();
     con_write(str, strlen(str));
 }
 

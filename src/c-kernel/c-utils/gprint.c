@@ -29,6 +29,8 @@ u8 gp_format_num_buf(u32 value, u8 buf[32], u8 base, bool use_capital) {
 
     const u8* map = use_capital ? map_big : map_small;
 
+    if(value == 0) { buf[0] = '0'; return 1; }
+
     usize i = 0;
     for(; value; i++) {
         buf[i] = map[value % base];

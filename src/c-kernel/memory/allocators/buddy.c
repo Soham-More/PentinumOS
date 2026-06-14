@@ -5,10 +5,13 @@
 #include <arch/defs.h>
 #include <c-utils/c-utils.h>
 #include <io/logger.h>
+#include <hw/cpu.h>
 
 #define BA_MAX_ORDER 20
 
 #define BA_IS_LEAF(x) IS_INV_PTR(x->children)
+#define BA_STATUS(flags) (flags & PNODE_STATUS_MASK)
+#define BA_MAPPING(flags) (flags & PNODE_MAP_MASK)
 
 struct {
     heap_allocator_t* allocator;
@@ -18,74 +21,96 @@ struct {
 u8 get_highest_setbit_loc(u32 value) {
     return 32 - __builtin_clz(value);
 }
-void pnode_set_status(ba_node_t* target, u8 flag) {
+bool pnode_validate_flags_update(ba_node_t* target, u8 new_flag, bool bypass) {
+    if(target->flags == new_flag) return true; // no change, valid update
+
+    bool is_status_updating  = (target->flags & PNODE_STATUS_MASK) != (new_flag & PNODE_STATUS_MASK);
+    bool is_status_upgrading = (target->flags & PNODE_STATUS_MASK)  > (new_flag & PNODE_STATUS_MASK);
+    bool is_blocked = (target->flags & PNODE_STATUS_MASK) == PNODE_BLOCKED;
+    bool is_used = (target->flags & PNODE_STATUS_MASK) == PNODE_USED;
+
+    bool is_mapping_updating = (target->flags & PNODE_MAP_MASK) != (new_flag & PNODE_MAP_MASK);
+    
+    // can't change the mapping while in use
+    // cannot be bypassed by PNODE_FORCE_OVERRIDE
+    if(is_used && !is_mapping_updating) { return false; }
+
+    if(bypass) { return true; }
+
+    // if the node is blocked memory, invalid update
+    // unless new_flag is changing the mapping
+    if(is_blocked) { return is_mapping_updating; }
+
+    return true;
+}
+void pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+    if(!pnode_validate_flags_update(target, flag, bypass)) {
+        if(fail_silently) return;
+        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        panic(PANIC_BAD_MEMORY_REQUEST);
+        return;
+    }
+
     // we only modify the status
     flag = flag & PNODE_STATUS_MASK;
     u8 target_status = target->flags & PNODE_STATUS_MASK;
     // if target is blocked memory, DO NOT MODIFY.
-    if(target_status == PNODE_BLOCKED) {
-        return;
-    }
+    if(target_status == PNODE_BLOCKED) { return; }
     // if the new flag is the same return.
     if(target_status == flag) return;
 
     // update
-    target->flags = (target->flags & ~PNODE_STATUS_MASK) | (flag & PNODE_STATUS_MASK);
+    target->flags = SET_MASKED_FLAGS(PNODE_STATUS_MASK, target->flags, flag);
 
     // now move it upwards
     ba_node_t* node = target->parent;
     while(!IS_INV_PTR(node)) {
-        u8 new_status = PNODE_FREE;
-
-        u8 free_cnt  = 0;
-        if((node->children[0].flags & PNODE_STATUS_MASK) == PNODE_FREE)  free_cnt++;
-        if((node->children[1].flags & PNODE_STATUS_MASK) == PNODE_FREE)  free_cnt++;
-        u8 avail_cnt = 0;
-        if((node->children[0].flags & PNODE_STATUS_MASK) == PNODE_AVAIL) avail_cnt++;
-        if((node->children[1].flags & PNODE_STATUS_MASK) == PNODE_AVAIL) avail_cnt++;
-        u8 blocked_cnt = 0;
-        if((node->children[0].flags & PNODE_STATUS_MASK) == PNODE_BLOCKED) blocked_cnt++;
-        if((node->children[1].flags & PNODE_STATUS_MASK) == PNODE_BLOCKED) blocked_cnt++;
-        u8 cnt = avail_cnt + free_cnt;
-
-        if(cnt == 0)      new_status = PNODE_USED;
-        else if(cnt == 1) new_status = PNODE_AVAIL;
-        else if(avail_cnt == 2) new_status = PNODE_AVAIL;
-        else if(free_cnt == 2)  new_status = PNODE_FREE;
-        else new_status = PNODE_USED;
-
-        if(blocked_cnt == 2) new_status = PNODE_BLOCKED;
-
-        node->flags = (node->flags & ~PNODE_STATUS_MASK) | new_status;
-
+        u8 new_status = BA_STATUS(node->children[0].flags) | BA_STATUS(node->children[1].flags);
+        node->flags = SET_MASKED_FLAGS(PNODE_STATUS_MASK, node->flags, new_status);
         node = node->parent;
     }
 }
-void pnode_sudo_set(ba_node_t* target, u8 flag) {
-    // set the status
-    pnode_set_status(target, flag);
+void pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+    if(!pnode_validate_flags_update(target, flag, bypass)) {
+        if(fail_silently) return;
+        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        panic(PANIC_BAD_MEMORY_REQUEST);
+        return;
+    }
 
-    // now set the mapping, dangerous!
-    u8 new_mapping = flag & PNODE_MAP_MASK;
+    // we only modify the mapping
+    flag = flag & PNODE_MAP_MASK;
     u8 target_mapping = target->flags & PNODE_MAP_MASK;
-
-    if(new_mapping == target_mapping) return;
+    // if target is blocked memory, DO NOT MODIFY.
+    if(target_mapping == PNODE_BLOCKED) { return; }
+    // if the new flag is the same return.
+    if(target_mapping == flag) return;
 
     // update
-    target->flags = (target->flags & ~PNODE_MAP_MASK) | (flag & PNODE_MAP_MASK);
+    target->flags = SET_MASKED_FLAGS(PNODE_MAP_MASK, target->flags, flag);
 
+    // now move it upwards
     ba_node_t* node = target->parent;
     while(!IS_INV_PTR(node)) {
-        u8 mapping_A = node->children[0].flags & PNODE_MAP_MASK;
-        u8 mapping_B = node->children[1].flags & PNODE_MAP_MASK;
+        u8 new_mapping = BA_MAPPING(node->children[0].flags) | BA_MAPPING(node->children[1].flags);
+        node->flags = SET_MASKED_FLAGS(PNODE_MAP_MASK, node->flags, new_mapping);
+        node = node->parent;
+    }
+}
+void pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+    if(!pnode_validate_flags_update(target, flag, bypass)) {
+        if(fail_silently) return;
+        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        panic(PANIC_BAD_MEMORY_REQUEST);
+        return;
+    }
 
-        u8 new_mapping = PNODE_MIX_MAPPED;
-        if(mapping_A == mapping_B) {
-            new_mapping = mapping_A;
-        }
-
-        node->flags = MIX_MASKED(node->flags, new_mapping, PNODE_MAP_MASK);
-
+    target->flags = SET_MASKED_FLAGS(PNODE_FLAG_MASK, target->flags, flag);
+    // now move it upwards
+    ba_node_t* node = target->parent;
+    while(!IS_INV_PTR(node)) {
+        u8 new_flag = node->children[0].flags | node->children[1].flags;
+        node->flags = SET_MASKED_FLAGS(PNODE_FLAG_MASK, node->flags, new_flag);
         node = node->parent;
     }
 }
@@ -94,7 +119,6 @@ void pnode_sudo_set(ba_node_t* target, u8 flag) {
 err_t ba_validate_node(ba_node_t* node) {
     if(IS_ERR_PTR(node)) return ERR_CAST(node);
     if(IS_ERR_PTR(node->parent)) return ERR_CAST(node->parent);
-    if(BA_IS_LEAF(node) && (node->flags & PNODE_AVAIL)) return EINVSELF;
     return ESUCCESS;
 }
 
@@ -113,7 +137,7 @@ ba_node_t ba_make_child(ba_node_t* parent, ptr_t child_idx) {
         .parent = parent,
         .children = nullptr,
         .address = parent->address + (child_idx << (parent->order - 1)),
-        .flags = parent->flags | ((-(u8)child_idx) & PNODE_BUDDY_OFFSET_NEGATIVE),
+        .flags = (parent->flags & PNODE_FLAG_MASK) | ((-(u8)child_idx) & PNODE_BUDDY_OFFSET_NEGATIVE),
         .order = parent->order - 1,
     };
 }
@@ -128,53 +152,6 @@ err_t ba_split_node(ba_node_t* node) {
     node->children = children;
 
     return ESUCCESS;
-}
-
-// match status flags
-// returns 0 - if not matched
-// returns 1 - if exact match
-// returns 2 - if inexact match
-u8 ba_match_flag_status(u8 flag, u16 search_flag, bool is_leaf) {
-    // status match rules:
-    // if:
-    // - PNODE_SEARCH_ANY_STATUS is set: return 1
-    // - search_flag & PNODE_STATUS_MASK == flag & PNODE_STATUS_MASK: return 1
-    // - if search_flag & PNODE_STATUS_MASK = PNODE_FREE and !is_leaf and flag & PNODE_STATUS_MASK == PNODE_AVAIL: return 2
-    // - otherwise return 0
-
-    u8 search_flag_status = search_flag & PNODE_STATUS_MASK;
-    u8 flag_status = flag & PNODE_STATUS_MASK;
-
-    if(search_flag & PNODE_SEARCH_ANY_STATUS) return 1;
-    if(is_leaf && (flag_status == search_flag_status))     return 1;
-    if(!is_leaf && (search_flag_status == PNODE_FREE) && (flag_status == PNODE_AVAIL)) return 2;
-
-    return 0;
-}
-// match mapping flags
-// return 0xFF for successfull match
-u8 ba_match_flag_mapping(u8 flag, u16 search_flag) {
-    // status match rules:
-    // if:
-    // - PNODE_SEARCH_ANY_MAPPING is set: return true
-    // - PNODE_MIX_MAPPING is set in flag: return true
-    // - search_flag & PNODE_STATUS_MASK == flag & PNODE_STATUS_MASK: return true
-    // - otherwise return false
-
-    u8 search_flag_mapping = search_flag & PNODE_MAP_MASK;
-    u8 flag_mapping = flag & PNODE_MAP_MASK;
-
-    if(search_flag & PNODE_SEARCH_ANY_MAPPING) return 0xFF;
-    if(flag_mapping == PNODE_MIX_MAPPED)       return 0xFF;
-    if(flag_mapping == search_flag_mapping)      return 0xFF;
-    return 0;
-}
-
-// match a flag to node
-u8 ba_match_node(ba_node_t* node, u16 search_flag) {
-    return 
-        ba_match_flag_status (node->flags, search_flag, BA_IS_LEAF(node)) &
-        ba_match_flag_mapping(node->flags, search_flag);
 }
 
 // get the leaf node with minimum possible address
@@ -227,17 +204,18 @@ ba_node_t* ba_search(u8 m_order, u16 search_flag) {
     ba_node_t* curr_node = g_buddy_alloc.root;
     // perform the search
     while(!IS_INV_PTR(curr_node)) {
-        u8 match_type = ba_match_node(curr_node, search_flag);
+        bool contains_req = (curr_node->flags & PNODE_FLAG_MASK) & (search_flag & PNODE_FLAG_MASK);
+        bool is_leaf = BA_IS_LEAF(curr_node);
         // no match: pop
-        if(match_type == 0) {
+        if(!contains_req) {
             goto pop;
         }
         // partial match: push
-        else if(match_type == 2) {
+        else if(!is_leaf) {
             goto push;
         }
         // perfect match: check if order is correct
-        else if(match_type == 1) {
+        else {
             // exact order! return this node
             if(curr_node->order == m_order) {
                 return curr_node;
@@ -253,19 +231,15 @@ ba_node_t* ba_search(u8 m_order, u16 search_flag) {
                 goto pop;
             }
         }
-        // no other possibility should be present
-        else {
-            return ERR_PTR(ba_node_t, EUNEXPEXEC);
-        }
 
         // pushing
         push:
         if(search_flag & PNODE_SEARCH_REVERSE) {
-            *top_stack = &curr_node->children[1];
-            curr_node  = &curr_node->children[0];
-        } else {
             *top_stack = &curr_node->children[0];
             curr_node  = &curr_node->children[1];
+        } else {
+            *top_stack = &curr_node->children[1];
+            curr_node  = &curr_node->children[0];
         }
         top_stack++;
         *top_stack = nullptr;
@@ -313,15 +287,17 @@ ba_node_t* ba_find_node(ptr_t address, i8 req_order) {
 }
 
 // mark some pages with flags
-err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags)
+err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags, bool bypass, bool fail_silently)
 {
     usize cnt = page_cnt;
     
     ba_node_t* node = ba_find_node(address, 0);
     if(IS_ERR_PTR(node)) return ERR_CAST(node);
-    pnode_sudo_set(node, flags);
+    pnode_set_flags(node, flags, bypass, fail_silently);
+    cnt--;
 
     while(cnt > 0) {
+        u32 last_page_addr = node->address + (1 << node->order);
         node = ba_get_next_leaf(node);
         if(IS_ERR_PTR(node)) return ERR_CAST(node);
 
@@ -330,7 +306,7 @@ err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags)
             if(IS_ERR_PTR(node)) return ERR_CAST(node);
         }
 
-        pnode_sudo_set(node, flags);
+        pnode_set_flags(node, flags, bypass, fail_silently);
         cnt -= 1 << node->order;
     }
 
@@ -356,13 +332,19 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mm
     u32 entry_cnt = *(u32*)e820_mmap;
     E820_MMAP_ENTRY* entry = (E820_MMAP_ENTRY*)((u32*)e820_mmap + 1);
 
-    ba_mark_pages(0, 1, PNODE_BLOCKED | PNODE_UNMAPPED);
+    ba_mark_pages(0, 1, PNODE_UNMAPPED | PNODE_BLOCKED, true, false); // reserve the null page
 
+    //entry_cnt = 1;
     for(usize i = 0; i < entry_cnt; i++) {
         u32 page_addr = div_floor(entry->baseAddress, X86_PAGE_SIZE);
         u32 page_cnt  = div_ceil(entry->baseAddress + entry->regionSize, X86_PAGE_SIZE) - page_addr;
 
-        err_t err = ba_mark_pages(page_addr, page_cnt, hdf_mmap_entry_type(entry));
+        if(page_addr == 0) {
+            page_addr = 1;
+            page_cnt -= 1;
+        }
+        
+        err_t err = ba_mark_pages(page_addr, page_cnt, hdf_mmap_entry_type(entry), true, false);
         if(IS_ERROR(err)) return err;
         
         entry += 1;
@@ -372,21 +354,21 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mm
 }
 
 // allocate page_cnt pages(may allocate more)
-void* allocate_pages(usize page_cnt) {
-    if(page_cnt == 0) return nullptr;
+const page_alloc_info_t allocate_pages(usize page_cnt) {
+    if(page_cnt == 0) return (page_alloc_info_t) { .error = ESUCCESS, .memory = nullptr, .size = 0 };
 
     u8 req_order = get_highest_setbit_loc(page_cnt);
-    if(page_cnt & (page_cnt - 1)) req_order++;
+    if((page_cnt & (page_cnt - 1)) == 0) req_order--;
 
     ba_node_t* node = ba_search(req_order, PNODE_FREE | PNODE_ON_RAM | PNODE_SEARCH_MODIFY);
     if(IS_ERR_PTR(node)) {
-        if(ERR_CAST(node) == ENOTFOUND) return ERR_PTR(void, ENOPAGE);
-        else return (void*)node;
+        if(ERR_CAST(node) == ENOTFOUND) return (page_alloc_info_t) { .error = ENOPAGE, .memory = nullptr, .size = 0 };
+        else return (page_alloc_info_t) { .error = ERR_CAST(node), .memory = nullptr, .size = 0 };
     }
 
-    pnode_set_status(node, PNODE_USED);
+    pnode_set_status(node, PNODE_USED, false, false);
 
-    return (void*)node->address;
+    return (page_alloc_info_t) { .error = ESUCCESS, .memory = (void*)(node->address * X86_PAGE_SIZE), .size = 1 << node->order };
 }
 
 void log_page_allocator_status() {
@@ -395,15 +377,31 @@ void log_page_allocator_status() {
     log_info("[buddy-allocator](log_page_allocator_status) Current Page Pool:\n");
     while(ERR_CAST(curr_node) != ENOPAGE) {
         if(IS_ERR_PTR(curr_node)) {
-            log_error("[buddy-allocator](log_page_allocator_status) unexpected error. code: 0x%x\n", ERR_CAST(curr_node));
-            // TODO: kill
+            log_error("[buddy-allocator](log_page_allocator_status) unexpected error. code: {x}\n", ERR_CAST(curr_node));
+            panic(PANIC_UNEXPECTED_FAILURE);
+            return;
         }
 
         u32 size = 1 << curr_node->order;
 
-        log_info("\taddr=0x%x, size=0x%x, status=0x%x, mapping=0x%x\n", 
-            curr_node->address, size, 
-            curr_node->flags & PNODE_STATUS_MASK, curr_node->flags & PNODE_MAP_MASK
+        char* status_str = "UNKNOWN";
+        switch(BA_STATUS(curr_node->flags)) {
+            case PNODE_FREE: status_str = "FREE"; break;
+            case PNODE_USED: status_str = "USED"; break;
+            case PNODE_BLOCKED: status_str = "BLOCKED"; break;
+            case PNODE_ACPI: status_str = "ACPI"; break;
+        }
+        char* mapping_str = "UNKNOWN";
+        switch(BA_MAPPING(curr_node->flags)) {
+            case PNODE_UNMAPPED: mapping_str = "UNMAPPED"; break;
+            case PNODE_ON_RAM: mapping_str = "ON_RAM"; break;
+            case PNODE_IO_MAPPED: mapping_str = "IO_MAPPED"; break;
+            case PNODE_BLK_MAPPED: mapping_str = "BLK_MAPPED"; break;
+        }
+
+        log_info("\tstart={p}, end={p}, status={6s%>}, mapping={10s%>}\n", 
+            curr_node->address * X86_PAGE_SIZE, (curr_node->address + size) * X86_PAGE_SIZE,
+            status_str, mapping_str
         );
 
         curr_node = ba_get_next_leaf(curr_node);

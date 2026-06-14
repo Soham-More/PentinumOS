@@ -25,14 +25,15 @@ _export void start(KernelInfo kernelInfo)
 	heap_allocator_t* kalloca = construct_heap(tmp_heap_obj_mem, __global_heap_start, PTR_DIFF_I32(__global_heap_end, __global_heap_start));
 	if(IS_INV_PTR(kalloca)) printf("[init] Failed to construct heap. CODE: %x\n", -ERR_CAST(kalloca));
 	// setup buddy allocator
-	//err_t err = initialize_buddy_allocator(kalloca, kernelInfo.e820_mmap);
-	//if(IS_ERROR(err)) printf("[init] Failed to initialize buddy allocator. CODE: %x\n", -err);
+	err_t err = initialize_buddy_allocator(kalloca, kernelInfo.e820_mmap);
+	if(IS_ERROR(err)) printf("[init] Failed to initialize buddy allocator. CODE: %x\n", -err);
 
-	void* test = malloc(kalloca, 0x100);
+	//void* test = malloc(kalloca, 0x100);
 
-	//printf("Testing buddy allocator... \n");
-	//void* p0 = allocate_pages(1);
-	//if(IS_ERR_PTR(p0)) printf("[test] Failed to allocate. CODE: %x\n", ERR_CAST(p0));
+	printf("Testing buddy allocator... \n");
+	const page_alloc_info_t p0 = allocate_pages(1);
+	if(p0.error != ESUCCESS) printf("[test] Failed to allocate. CODE: %x\n", p0.error);
+	printf("Allocated page at address {p}, size {u} bytes\n", p0.memory, p0.size);
 
 	log_heap_status(kalloca);
 	log_page_allocator_status();
