@@ -2,8 +2,8 @@
 
 #include <c-utils/stdio.h>
 
-cpuinfo_t get_cpu_info() {
-    return (cpuinfo_t) {
+cpu_info_t cpu_get_info() {
+    return (cpu_info_t) {
         .vendor = "GenuineIntel",
         .family = 6,
         .model = 14,

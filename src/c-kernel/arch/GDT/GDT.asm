@@ -31,3 +31,9 @@ i686_load_gdt:
     mov esp, ebp
     pop ebp
     ret
+
+global i686_load_tss
+i686_load_tss:
+    mov eax, [esp + 4]
+    ltr ax
+    ret

@@ -9,9 +9,10 @@
 
 #define BA_MAX_ORDER 20
 
-#define BA_IS_LEAF(x) IS_INV_PTR(x->children)
-#define BA_STATUS(flags) (flags & PNODE_STATUS_MASK)
-#define BA_MAPPING(flags) (flags & PNODE_MAP_MASK)
+#define BA_IS_LEAF(x) IS_INV_PTR((x)->children)
+#define BA_STATUS(flags) ((flags) & PNODE_STATUS_MASK)
+#define BA_MAPPING(flags) ((flags) & PNODE_MAP_MASK)
+#define BA_FLAGS(flags) ((flags) & PNODE_FLAG_MASK)
 
 struct {
     heap_allocator_t* allocator;
@@ -33,7 +34,8 @@ bool pnode_validate_flags_update(ba_node_t* target, u8 new_flag, bool bypass) {
     
     // can't change the mapping while in use
     // cannot be bypassed by PNODE_FORCE_OVERRIDE
-    if(is_used && !is_mapping_updating) { return false; }
+    // but if the node is being freed and the mapping is being updated, then allow it to bypass the "can't change mapping while in use" rule
+    if(is_used && is_mapping_updating) { return is_status_upgrading && bypass; }
 
     if(bypass) { return true; }
 
@@ -43,21 +45,41 @@ bool pnode_validate_flags_update(ba_node_t* target, u8 new_flag, bool bypass) {
 
     return true;
 }
-void pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+err_t pnode_repair_tree(ba_node_t* target) {
+    // combine nodes when both children are free
+    // go upwards and repair the tree
+    ba_node_t* node = target;
+    while(!IS_INV_PTR(node->parent)) {
+        ba_node_t* parent = node->parent;
+        if(BA_IS_LEAF(&parent->children[0]) && BA_IS_LEAF(&parent->children[1])) {
+            // both children are leaves
+            if(BA_FLAGS(parent->children[0].flags) == BA_FLAGS(parent->children[1].flags) && 
+               BA_STATUS(parent->children[0].flags) == PNODE_FREE) {
+                // both children are free, merge them
+                free(g_buddy_alloc.allocator, parent->children);
+                parent->children = nullptr;
+            }
+        }
+        node = parent;
+    }
+
+    return ESUCCESS;
+}
+err_t pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
-        if(fail_silently) return;
+        if(fail_silently) return EINVAL;
         log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         panic(PANIC_BAD_MEMORY_REQUEST);
-        return;
+        return EINVAL;
     }
 
     // we only modify the status
     flag = flag & PNODE_STATUS_MASK;
     u8 target_status = target->flags & PNODE_STATUS_MASK;
     // if target is blocked memory, DO NOT MODIFY.
-    if(target_status == PNODE_BLOCKED) { return; }
+    if(target_status == PNODE_BLOCKED) { return EINVAL; }
     // if the new flag is the same return.
-    if(target_status == flag) return;
+    if(target_status == flag) return EINVAL;
 
     // update
     target->flags = SET_MASKED_FLAGS(PNODE_STATUS_MASK, target->flags, flag);
@@ -69,22 +91,23 @@ void pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silentl
         node->flags = SET_MASKED_FLAGS(PNODE_STATUS_MASK, node->flags, new_status);
         node = node->parent;
     }
+    return pnode_repair_tree(target);
 }
-void pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+err_t pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
-        if(fail_silently) return;
+        if(fail_silently) return EINVAL;
         log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         panic(PANIC_BAD_MEMORY_REQUEST);
-        return;
+        return EINVAL;
     }
 
     // we only modify the mapping
     flag = flag & PNODE_MAP_MASK;
     u8 target_mapping = target->flags & PNODE_MAP_MASK;
     // if target is blocked memory, DO NOT MODIFY.
-    if(target_mapping == PNODE_BLOCKED) { return; }
+    if(target_mapping == PNODE_BLOCKED) { return EINVAL; }
     // if the new flag is the same return.
-    if(target_mapping == flag) return;
+    if(target_mapping == flag) return EINVAL;
 
     // update
     target->flags = SET_MASKED_FLAGS(PNODE_MAP_MASK, target->flags, flag);
@@ -96,13 +119,14 @@ void pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silent
         node->flags = SET_MASKED_FLAGS(PNODE_MAP_MASK, node->flags, new_mapping);
         node = node->parent;
     }
+    return pnode_repair_tree(target);
 }
-void pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
+err_t pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
-        if(fail_silently) return;
+        if(fail_silently) return EINVAL;
         log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         panic(PANIC_BAD_MEMORY_REQUEST);
-        return;
+        return EINVAL;
     }
 
     target->flags = SET_MASKED_FLAGS(PNODE_FLAG_MASK, target->flags, flag);
@@ -113,6 +137,7 @@ void pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently
         node->flags = SET_MASKED_FLAGS(PNODE_FLAG_MASK, node->flags, new_flag);
         node = node->parent;
     }
+    return pnode_repair_tree(target);
 }
 
 // helper functions
@@ -194,6 +219,12 @@ ba_node_t* ba_get_prev_leaf(ba_node_t* leaf)  {
     return ba_get_max_leaf(&node->children[0]);
 }
 
+bool ba_match_flags(ba_node_t* node, u8 flags) {
+    bool is_status_match = node->flags & flags & PNODE_STATUS_MASK;
+    bool is_map_match    = node->flags & flags & PNODE_MAP_MASK;
+    return is_status_match && is_map_match;
+}
+
 // find a node of given order,mapping and status
 ba_node_t* ba_search(u8 m_order, u16 search_flag) {
     
@@ -204,7 +235,7 @@ ba_node_t* ba_search(u8 m_order, u16 search_flag) {
     ba_node_t* curr_node = g_buddy_alloc.root;
     // perform the search
     while(!IS_INV_PTR(curr_node)) {
-        bool contains_req = (curr_node->flags & PNODE_FLAG_MASK) & (search_flag & PNODE_FLAG_MASK);
+        bool contains_req = ba_match_flags(curr_node, search_flag);
         bool is_leaf = BA_IS_LEAF(curr_node);
         // no match: pop
         if(!contains_req) {
@@ -314,7 +345,7 @@ err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags, bool bypass, bool f
 }
 
 // api functions;
-err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mmap) {
+err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, KernelInfo* kInfo) {
     // initialize the heap allocator for buddy allocator
     g_buddy_alloc.allocator = initialize_heap(heap_allocator, __buddy_heap_start, PTR_DIFF_I32(__buddy_heap_start, __buddy_heap_end));
 
@@ -329,12 +360,11 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mm
         .order = 20,
     };
 
-    u32 entry_cnt = *(u32*)e820_mmap;
-    E820_MMAP_ENTRY* entry = (E820_MMAP_ENTRY*)((u32*)e820_mmap + 1);
+    u32 entry_cnt = *(u32*)kInfo->e820_mmap;
+    E820_MMAP_ENTRY* entry = (E820_MMAP_ENTRY*)((u32*)kInfo->e820_mmap + 1);
 
     ba_mark_pages(0, 1, PNODE_UNMAPPED | PNODE_BLOCKED, true, false); // reserve the null page
 
-    //entry_cnt = 1;
     for(usize i = 0; i < entry_cnt; i++) {
         u32 page_addr = div_floor(entry->baseAddress, X86_PAGE_SIZE);
         u32 page_cnt  = div_ceil(entry->baseAddress + entry->regionSize, X86_PAGE_SIZE) - page_addr;
@@ -345,34 +375,121 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mm
         }
         
         err_t err = ba_mark_pages(page_addr, page_cnt, hdf_mmap_entry_type(entry), true, false);
-        if(IS_ERROR(err)) return err;
+        if(err != ESUCCESS) return err;
         
         entry += 1;
     }
+
+    for(usize i = 0; i < kInfo->kernelMap->entryCount; i++) {
+        u32 page_addr = div_floor(kInfo->kernelMap->entries[i].sectionBegin, X86_PAGE_SIZE);
+        u32 page_cnt  = div_ceil(kInfo->kernelMap->entries[i].sectionBegin + kInfo->kernelMap->entries[i].sectionSize, X86_PAGE_SIZE) - page_addr;
+
+        if(page_addr == 0) {
+            page_addr = 1;
+            page_cnt -= 1;
+        }
+
+        err_t err = ba_mark_pages(page_addr, page_cnt, PNODE_ON_RAM | PNODE_USED, false, false);
+        if(err != ESUCCESS) return err;
+    }
+    
+    // mark the kernel stack pages as used
+    u32 stack_page_addr = div_floor((ptr_t)__kernel_stack_begin, X86_PAGE_SIZE);
+    u32 stack_page_cnt  = div_ceil((ptr_t)__kernel_stack_end, X86_PAGE_SIZE) - stack_page_addr;
+    err_t err = ba_mark_pages(stack_page_addr, stack_page_cnt, PNODE_ON_RAM | PNODE_USED, false, false);
+    if(err != ESUCCESS) return err;
+
+    // mark the page tables as used
+    err = ba_mark_pages(((ptr_t)kInfo->pagingInfo->pageDirectory) >> 12, 1, PNODE_ON_RAM | PNODE_USED, false, false);
+    if(err != ESUCCESS) return err;
+    err = ba_mark_pages(((ptr_t)kInfo->pagingInfo->pageTableArray) >> 12, kInfo->pagingInfo->table_count, PNODE_ON_RAM | PNODE_USED, false, false);
+    if(err != ESUCCESS) return err;
 
     return ESUCCESS;
 }
 
 // allocate page_cnt pages(may allocate more)
 const page_alloc_info_t allocate_pages(usize page_cnt) {
-    if(page_cnt == 0) return (page_alloc_info_t) { .error = ESUCCESS, .memory = nullptr, .size = 0 };
+    if(page_cnt == 0) return (page_alloc_info_t) { .error = ESUCCESS, .memory = nullptr, .count = 0, .mapping = 0 };
 
     u8 req_order = get_highest_setbit_loc(page_cnt);
     if((page_cnt & (page_cnt - 1)) == 0) req_order--;
 
     ba_node_t* node = ba_search(req_order, PNODE_FREE | PNODE_ON_RAM | PNODE_SEARCH_MODIFY);
     if(IS_ERR_PTR(node)) {
-        if(ERR_CAST(node) == ENOTFOUND) return (page_alloc_info_t) { .error = ENOPAGE, .memory = nullptr, .size = 0 };
-        else return (page_alloc_info_t) { .error = ERR_CAST(node), .memory = nullptr, .size = 0 };
+        if(ERR_CAST(node) == ENOTFOUND) return (page_alloc_info_t) { .error = ENOPAGE, .memory = nullptr, .count = 0, .mapping = 0 };
+        else return (page_alloc_info_t) { .error = ERR_CAST(node), .memory = nullptr, .count = 0, .mapping = 0 };
     }
 
     pnode_set_status(node, PNODE_USED, false, false);
 
-    return (page_alloc_info_t) { .error = ESUCCESS, .memory = (void*)(node->address * X86_PAGE_SIZE), .size = 1 << node->order };
+    return (page_alloc_info_t) { .error = ESUCCESS, .memory = (void*)(node->address * X86_PAGE_SIZE), .count = 1 << node->order, .mapping = PNODE_ON_RAM };
+}
+
+// allocate page_cnt pages(may allocate more) on memory not on ram
+// if status is PNODE_BLK_MAPPED - then mark allocated pages as BLK_MAPPED
+// if status is PNODE_IO_MAPPED - then mark allocated pages as IO_MAPPED
+const page_alloc_info_t allocate_mapped_pages(u16 status, usize page_cnt) {
+    if(page_cnt == 0) return (page_alloc_info_t) { .error = ESUCCESS, .memory = nullptr, .count = 0, .mapping = 0 };
+    u8 validated_map = status & (PNODE_BLK_MAPPED | PNODE_IO_MAPPED);
+    if(validated_map == 0) return (page_alloc_info_t) { .error = EINVAL, .memory = nullptr, .count = 0, .mapping = 0 };
+
+    u8 req_order = get_highest_setbit_loc(page_cnt);
+    if((page_cnt & (page_cnt - 1)) == 0) req_order--;
+
+    ba_node_t* node = ba_search(req_order, PNODE_FREE | PNODE_UNMAPPED | PNODE_SEARCH_MODIFY | PNODE_SEARCH_REVERSE);
+    if(IS_ERR_PTR(node)) {
+        if(ERR_CAST(node) == ENOTFOUND) return (page_alloc_info_t) { .error = ENOPAGE, .memory = nullptr, .count = 0, .mapping = 0 };
+        else return (page_alloc_info_t) { .error = ERR_CAST(node), .memory = nullptr, .count = 0, .mapping = 0 };
+    }
+
+    pnode_set_flags(node, PNODE_USED | validated_map, false, false);
+
+    return (page_alloc_info_t) { .error = ESUCCESS, .memory = (void*)(node->address * X86_PAGE_SIZE), .count = 1 << node->order, .mapping = validated_map };
+}
+
+// free allocated pages
+err_t free_pages(const page_alloc_info_t* page_info) {
+    // validate page_info
+    if(!page_info) return EINVAL;
+    
+    if(page_info->count == 0)         return EINVAL;
+    if(page_info->error != ESUCCESS) return EINVAL;
+    if((page_info->mapping & PNODE_MAP_MASK) == 0)      return EINVAL;
+
+    if((page_info->count & (page_info->count - 1)) != 0)  return EINVAL;
+    if((ptr_t)page_info->memory % page_info->count != 0) return EINVAL;
+
+    ba_node_t* node = ba_find_node((ptr_t)page_info->memory / X86_PAGE_SIZE, get_highest_setbit_loc(page_info->count) - 1);
+    if(IS_ERR_PTR(node)) {
+        return ERR_CAST(node);
+    }
+
+    if(BA_MAPPING(node->flags) != page_info->mapping || BA_STATUS(node->flags) != PNODE_USED) {
+        log_critical("[buddy allocator] invalid page free request. target node: {p}, target mapping: {x}, page_info mapping: {x}\n", node, BA_MAPPING(node->flags), page_info->mapping);
+        panic(PANIC_BAD_MEMORY_REQUEST);
+        return EINVAL;
+    }
+
+    if(BA_MAPPING(node->flags) == PNODE_ON_RAM) {
+        // if the page is not on ram, just mark it as free
+        pnode_set_status(node, PNODE_FREE, true, false);
+        return ESUCCESS;
+    } else {
+        // if the page is on ram, mark it as unmapped and free
+        pnode_set_flags(node, PNODE_FREE | PNODE_UNMAPPED, true, false);
+    }
+
+    return ESUCCESS;
 }
 
 void log_page_allocator_status() {
     ba_node_t* curr_node = ba_get_min_leaf(g_buddy_alloc.root);
+
+    ptr_t start_addr = 0; ptr_t end_addr = 0;
+    u8 curr_flags = 0;
+
+    usize largest_contiguous_memory = 0;
 
     log_info("[buddy-allocator](log_page_allocator_status) Current Page Pool:\n");
     while(ERR_CAST(curr_node) != ENOPAGE) {
@@ -381,29 +498,74 @@ void log_page_allocator_status() {
             panic(PANIC_UNEXPECTED_FAILURE);
             return;
         }
+        u32 size = (1 << curr_node->order) * X86_PAGE_SIZE;
 
-        u32 size = 1 << curr_node->order;
+        if(curr_flags == BA_FLAGS(curr_node->flags)) {
+            end_addr += size;
+            curr_node = ba_get_next_leaf(curr_node);
+            continue;
+        }
+
+        if(curr_flags != 0) {
+            if((largest_contiguous_memory < PTR_DIFF_I32(end_addr, start_addr)) && (curr_flags == (PNODE_ON_RAM | PNODE_FREE))) {
+                largest_contiguous_memory = PTR_DIFF_I32(end_addr, start_addr);
+            }
+
+            char* status_str = "UNKNOWN";
+            switch(BA_STATUS(curr_flags)) {
+                case PNODE_FREE: status_str = "FREE"; break;
+                case PNODE_USED: status_str = "USED"; break;
+                case PNODE_BLOCKED: status_str = "BLOCKED"; break;
+                case PNODE_ACPI: status_str = "ACPI"; break;
+            }
+            char* mapping_str = "UNKNOWN";
+            switch(BA_MAPPING(curr_flags)) {
+                case PNODE_UNMAPPED: mapping_str = "UNMAPPED"; break;
+                case PNODE_ON_RAM: mapping_str = "ON_RAM"; break;
+                case PNODE_IO_MAPPED: mapping_str = "IO_MAPPED"; break;
+                case PNODE_BLK_MAPPED: mapping_str = "BLK_MAPPED"; break;
+            }
+
+            log_info("\tstart={p}, end={p}, status={8s%>}, mapping={10s%>}\n", 
+                start_addr, end_addr,
+                status_str, mapping_str
+            );
+        }
+        
+        start_addr = curr_node->address * X86_PAGE_SIZE;
+        end_addr = start_addr + size;
+        curr_flags = BA_FLAGS(curr_node->flags);
+
+        curr_node = ba_get_next_leaf(curr_node);
+    }
+
+    if(curr_flags != 0) {
+        if(end_addr == 0) end_addr = 0xFFFFFFFF; // if end_addr is 0, it means it is the end of the address space
+
+        if((largest_contiguous_memory < PTR_DIFF_I32(end_addr, start_addr)) && (curr_flags == (PNODE_ON_RAM | PNODE_FREE))) {
+            largest_contiguous_memory = PTR_DIFF_I32(end_addr, start_addr);
+        }
 
         char* status_str = "UNKNOWN";
-        switch(BA_STATUS(curr_node->flags)) {
+        switch(BA_STATUS(curr_flags)) {
             case PNODE_FREE: status_str = "FREE"; break;
             case PNODE_USED: status_str = "USED"; break;
             case PNODE_BLOCKED: status_str = "BLOCKED"; break;
             case PNODE_ACPI: status_str = "ACPI"; break;
         }
         char* mapping_str = "UNKNOWN";
-        switch(BA_MAPPING(curr_node->flags)) {
+        switch(BA_MAPPING(curr_flags)) {
             case PNODE_UNMAPPED: mapping_str = "UNMAPPED"; break;
             case PNODE_ON_RAM: mapping_str = "ON_RAM"; break;
             case PNODE_IO_MAPPED: mapping_str = "IO_MAPPED"; break;
             case PNODE_BLK_MAPPED: mapping_str = "BLK_MAPPED"; break;
         }
 
-        log_info("\tstart={p}, end={p}, status={6s%>}, mapping={10s%>}\n", 
-            curr_node->address * X86_PAGE_SIZE, (curr_node->address + size) * X86_PAGE_SIZE,
+        log_info("\tstart={p}, end={p}, status={8s%>}, mapping={10s%>}\n", 
+            start_addr, end_addr,
             status_str, mapping_str
         );
-
-        curr_node = ba_get_next_leaf(curr_node);
     }
+
+    log_info("[buddy-allocator](log_page_allocator_status) Largest Contiguous Free Memory: {u} MiB\n", largest_contiguous_memory >> 20);
 }

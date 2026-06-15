@@ -1,12 +1,20 @@
 ENTRY(start)
 OUTPUT_FORMAT("elf32-i386")
-phys = 0x00600000;
+stack = 0x00500000;
+phys  = 0x00600000;
+stack_size    = 0x4000; /* 16 KiB main stack */
 heap_size     = 0x200000;  /* 1MB heap */
 dbgstack_size = 0x1000; /* 4 KiB stack(1 page) */
-early_obj_pool_size = 0x100; /* 256B memory to store some early objects */
 
 SECTIONS
 {
+    . = stack;
+    .kernel_stack : {
+        __kernel_stack_begin = .;
+        . += stack_size;
+        __kernel_stack_end = .;
+    }
+
     . = phys;
 
     .idt                : { __idt_start = .;        *(.idt)     }
@@ -17,7 +25,7 @@ SECTIONS
     
     . = ALIGN(0x10);
     .dbgstack         : { 
-        __dbgstack_start = .; 
+        __dbgstack_start = .;
         . += dbgstack_size;
         __dbgstack_end = .;
     }

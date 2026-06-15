@@ -6,9 +6,10 @@
 
 typedef struct heap_allocator_t heap_allocator_t;
 typedef struct page_alloc_info_t {
-    err_t error;
     void* memory;
-    usize size;
+    usize count;
+    err_t error;
+    u32   mapping;
 } page_alloc_info_t;
 
 // heap allocator
@@ -33,18 +34,14 @@ void log_heap_status(heap_allocator_t* heap_allocator);
 void free(heap_allocator_t* heap_allocator, void* ptr);
 
 // a buddy allocator for allocating multiple pages
-err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, void* e820_mmap);
+err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, KernelInfo* kInfo);
 
 // allocate page_cnt pages(may allocate more)
 const page_alloc_info_t allocate_pages(usize page_cnt);
 
-// allocate page_cnt pages(may allocate more) on memory not on ram
-// if status is PNODE_BLK_MAPPED - then mark allocated pages as BLK_MAPPED
-// if status is PNODE_IO_MAPPED - then mark allocated pages as IO_MAPPED
-const page_alloc_info_t allocate_mapped_pages(u16 status, usize page_cnt);
-
 void log_page_allocator_status();
 
-// free page_cnt pages
-err_t free_pages(void* ptr, usize page_cnt);
+// free allocated pages
+// will mark the pages as free and ummaped if not on ram
+err_t free_pages(const page_alloc_info_t* page_info);
 

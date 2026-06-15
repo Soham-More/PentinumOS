@@ -8,3 +8,6 @@
 #include <arch/x86.h>
 
 void initialize_i686();
+
+tss_entry_t* get_global_tss();
+u16 get_global_tss_selector();

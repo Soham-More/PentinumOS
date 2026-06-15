@@ -2,41 +2,45 @@
 #include <handoff/handoff.h>
 
 #include <pools.h>
+#include <hw/cpu.h>
 #include <arch/i686.h>
 #include <memory/memory.h>
+#include <memory/internals.h>
 
 #include <io/console.h>
 #include <drivers/dcom/dcom.h>
 #include <c-utils/c-utils.h>
 
+u8 g_kalloc_buffer[64];
+heap_allocator_t* kalloca;
+console_t earlyconsole;
+
+// boot up the kernel,
+// setup all important kernel objects and subsystems
+// start the first kernel thread
+// then terminate the boot thread which is executing this start function
 _export void start(KernelInfo kernelInfo)
 {
 	// initialize the CPU
 	initialize_i686();
 
 	// initialize console
-	console_t earlyconsole = dcom_get_earlyconsole();
+	earlyconsole = dcom_get_earlyconsole();
 	initialize_console_manager(earlyconsole);
 	
 	// setup heap allocator
 	// init the global allocator on the STACK
 	usize heap_obj_size = get_heap_allocator_bytesize();
-	u8    tmp_heap_obj_mem[heap_obj_size];
-	heap_allocator_t* kalloca = construct_heap(tmp_heap_obj_mem, __global_heap_start, PTR_DIFF_I32(__global_heap_end, __global_heap_start));
+	if(heap_obj_size > sizeof(g_kalloc_buffer)) {
+		printf("[init] Heap allocator object size is larger than the provided global allocator memory. Halting...!\n");
+		panic(PANIC_UNEXPECTED_FAILURE);
+		return;
+	}
+	kalloca = construct_heap(g_kalloc_buffer, __global_heap_start, PTR_DIFF_I32(__global_heap_end, __global_heap_start));
 	if(IS_INV_PTR(kalloca)) printf("[init] Failed to construct heap. CODE: %x\n", -ERR_CAST(kalloca));
 	// setup buddy allocator
-	err_t err = initialize_buddy_allocator(kalloca, kernelInfo.e820_mmap);
+	err_t err = initialize_buddy_allocator(kalloca, &kernelInfo);
 	if(IS_ERROR(err)) printf("[init] Failed to initialize buddy allocator. CODE: %x\n", -err);
-
-	//void* test = malloc(kalloca, 0x100);
-
-	printf("Testing buddy allocator... \n");
-	const page_alloc_info_t p0 = allocate_pages(1);
-	if(p0.error != ESUCCESS) printf("[test] Failed to allocate. CODE: %x\n", p0.error);
-	printf("Allocated page at address {p}, size {u} bytes\n", p0.memory, p0.size);
-
-	log_heap_status(kalloca);
-	log_page_allocator_status();
 
 	printf("Finished Executing, Halting...!\n");
 	flush_terminal();

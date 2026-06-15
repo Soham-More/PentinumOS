@@ -10,7 +10,7 @@ static MemoryMap g_memoryMap;
 
 typedef struct
 {
-	uint64_t memorySize;
+	uint64_t table_count;
 	uint32_t* pageDirectory;
 	uint32_t* pageTableArray;
 }_packed PagingInfo;
@@ -96,7 +96,7 @@ void _cdecl start(uint8_t bootDrive, void* e820_mmap)
 	PagingInfo pInfo;
 	pInfo.pageDirectory = PAGE_DIRECTORY_PHYSICAL_ADDRESS;
 	pInfo.pageTableArray = PAGE_TABLE_ARRAY_PHYSICAL_ADDRESS;
-	pInfo.memorySize = memSize;
+	pInfo.table_count = 256;
 
 	KernelInfo kernelInfo;
 	kernelInfo.bootDrive = bootDrive;

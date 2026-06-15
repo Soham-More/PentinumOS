@@ -25,7 +25,7 @@ typedef struct KernelMap
 
 typedef struct _PagingInfo
 {
-	u64  memorySize;
+	u64  table_count;
 	u32* pageDirectory;
 	u32* pageTableArray;
 }_packed PagingInfo;

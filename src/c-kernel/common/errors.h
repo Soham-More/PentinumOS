@@ -20,6 +20,7 @@
 #define EINVPT      (EINV | 0x0)     // Invalid pagetable(happens if an allocator is called in wrong pagetable)
 #define EINVSELF    (EINV | 0x1)     // Invalid self(happens if invalid data structure is passed)
 #define EINVSTATE   (EINV | 0x2)     // Invalid state(happens if a data structure is in invalid state)
+#define EINVAL      (EINV | 0x3)     // Invalid argument(happens if an invalid argument is passed to a function)
 
 #define EUNEXP      ERR_CAST(0x30)   // unexpected error
 #define EUNEXPEXEC  (EUNEXP | 0x0)   // unexpected code execution(Ex. unreachable code is executed)

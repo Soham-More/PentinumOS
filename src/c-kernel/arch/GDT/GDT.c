@@ -49,6 +49,12 @@ enum GDT_FLAGS
     GDT_64BIT_SEGMENT  = 0x20,
 };
 
+enum GDT_SYSTEM_SEGMENT_FLAGS
+{
+    GDT_16BIT_TSS = 0x01,
+    GDT_32BIT_TSS = 0x09,
+};
+
 #define _SET_BASE_LO(base)   ((u16)( base & 0xFFFF ))
 #define _SET_BASE_MID(base)  ((u8)( (base >> 16) & 0xFF ))
 #define _SET_BASE_HI(base)   ((u8)( (base >> 24) & 0xFF ))
@@ -100,6 +106,7 @@ GDT_ENTRY gdt_entries[] =
 GDT_DESC gdt_desc = { sizeof(gdt_entries) - 1, gdt_entries };
 
 _import void _asmcall i686_load_gdt(GDT_DESC* gdt_desc, u16 code_segment, u16 data_segment);
+_import void _asmcall i686_load_tss(u16 tss_segment);
 
 void i686_init_gdt()
 {
@@ -111,5 +118,11 @@ void x86_gdt_add_tss(tss_entry_t* tss, u32 gdt_entry_id)
     // make sure the wrong entry does not get modified
     if(gdt_entry_id < 3) return;
 
-    gdt_entries[gdt_entry_id] = GDT_ENTRY(((u32)tss), (sizeof(tss_entry_t) - 1), GDT_PRESENT_ENTRY | GDT_PRIVILEGE_RING0 | GDT_CODE_SEGMENT | GDT_ALLOW_CODE_READ, 0);
+    gdt_entries[gdt_entry_id] = GDT_ENTRY(
+        ((u32)tss), 
+        (sizeof(tss_entry_t) - 1), 
+        GDT_PRESENT_ENTRY | GDT_PRIVILEGE_RING0 | GDT_32BIT_TSS, 
+        0
+    );
+    i686_load_tss(gdt_entry_id << 3);
 }
