@@ -68,8 +68,7 @@ err_t pnode_repair_tree(ba_node_t* target) {
 err_t pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
-        panic(PANIC_BAD_MEMORY_REQUEST);
+        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -96,8 +95,7 @@ err_t pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silent
 err_t pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
-        panic(PANIC_BAD_MEMORY_REQUEST);
+        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -124,8 +122,7 @@ err_t pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silen
 err_t pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        log_critical("[buddy allocator] invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
-        panic(PANIC_BAD_MEMORY_REQUEST);
+        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -344,6 +341,15 @@ err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags, bool bypass, bool f
     return ESUCCESS;
 }
 
+err_t ba_mark_stack(ptr_t stack_bottom, ptr_t stack_top) {
+    // mark the pages occupied by the stack with flags
+    ptr_t page_aligned_bottom = div_floor(stack_bottom, X86_PAGE_SIZE);
+    ptr_t page_aligned_top = div_ceil(stack_top, X86_PAGE_SIZE);
+
+    usize page_cnt = page_aligned_top - page_aligned_bottom;
+    return ba_mark_pages(page_aligned_bottom, page_cnt, PNODE_ON_RAM | PNODE_USED, false, false);
+}
+
 // api functions;
 err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, KernelInfo* kInfo) {
     // initialize the heap allocator for buddy allocator
@@ -394,9 +400,20 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, KernelInfo* k
     }
     
     // mark the kernel stack pages as used
-    u32 stack_page_addr = div_floor((ptr_t)__kernel_stack_begin, X86_PAGE_SIZE);
-    u32 stack_page_cnt  = div_ceil((ptr_t)__kernel_stack_end, X86_PAGE_SIZE) - stack_page_addr;
-    err_t err = ba_mark_pages(stack_page_addr, stack_page_cnt, PNODE_ON_RAM | PNODE_USED, false, false);
+    /*
+    err_t err = ba_mark_stack((ptr_t)__idle_thread_intr_stack_start, (ptr_t)__idle_thread_intr_stack_end);
+    if(err != ESUCCESS) return err;
+    err = ba_mark_stack((ptr_t)__idle_thread_exec_stack_start, (ptr_t)__idle_thread_exec_stack_end);
+    if(err != ESUCCESS) return err;
+    err = ba_mark_stack((ptr_t)__master_thread_intr_stack_start, (ptr_t)__master_thread_intr_stack_end);
+    if(err != ESUCCESS) return err;
+    err = ba_mark_stack((ptr_t)__master_thread_exec_stack_start, (ptr_t)__master_thread_exec_stack_end);
+    if(err != ESUCCESS) return err;
+    */
+
+    err_t err = ba_mark_stack((ptr_t)__stack_rsvd_start, (ptr_t)__stack_rsvd_end);
+    if(err != ESUCCESS) return err;
+    err = ba_mark_stack((ptr_t)__heap_rsvd_start, (ptr_t)__heap_rsvd_end);
     if(err != ESUCCESS) return err;
 
     // mark the page tables as used
@@ -466,8 +483,12 @@ err_t free_pages(const page_alloc_info_t* page_info) {
     }
 
     if(BA_MAPPING(node->flags) != page_info->mapping || BA_STATUS(node->flags) != PNODE_USED) {
-        log_critical("[buddy allocator] invalid page free request. target node: {p}, target mapping: {x}, page_info mapping: {x}\n", node, BA_MAPPING(node->flags), page_info->mapping);
-        panic(PANIC_BAD_MEMORY_REQUEST);
+        panic(
+            PANIC_BAD_MEMORY_REQUEST, 
+            "invalid page free request. target node: {p}, target mapping: {x}, page_info mapping: {x}\n", 
+            node, BA_MAPPING(node->flags), 
+            page_info->mapping
+        );
         return EINVAL;
     }
 
@@ -493,11 +514,7 @@ void log_page_allocator_status() {
 
     log_info("[buddy-allocator](log_page_allocator_status) Current Page Pool:\n");
     while(ERR_CAST(curr_node) != ENOPAGE) {
-        if(IS_ERR_PTR(curr_node)) {
-            log_error("[buddy-allocator](log_page_allocator_status) unexpected error. code: {x}\n", ERR_CAST(curr_node));
-            panic(PANIC_UNEXPECTED_FAILURE);
-            return;
-        }
+        panic_on_err_ptr(curr_node, "unexpected error");
         u32 size = (1 << curr_node->order) * X86_PAGE_SIZE;
 
         if(curr_flags == BA_FLAGS(curr_node->flags)) {

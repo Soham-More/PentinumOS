@@ -8,6 +8,7 @@
 
 #include <arch/x86.h>
 #include <io/console.h>
+#include <multitasking/kernel.h>
 
 static char putc_buffer[32];
 static u32 putc_buffer_pos = 0;

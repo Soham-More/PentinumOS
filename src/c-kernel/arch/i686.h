@@ -7,6 +7,8 @@
 #include <arch/IRQ/IRQ.h>
 #include <arch/x86.h>
 
+typedef void (*x86_interrupt_handler_t)(registers_t* registers);
+
 void initialize_i686();
 
 tss_entry_t* get_global_tss();

@@ -33,7 +33,7 @@ void init_irq()
         i686_set_isr(vector + REMAP_PIC_OFFSET, _default_irq_handler);
     }
 
-    x86_EnableInterrupts();
+    x86_enable_interrupts();
 }
 
 void IRQ_registerHandler(u8 irq, IRQHandler handler)

@@ -15,16 +15,26 @@
 #define ENOMEM      (EMEMORY | 0x0)  // No memory left in current context
 #define ENOPAGE     (EMEMORY | 0x1)  // requested page does not exist(not mapped to a physical addr)
 #define EPAGEINUSE  (EMEMORY | 0x2)  // requested page is in use
+#define EPOOLFULL   (EMEMORY | 0x3)  // a internal memory pool is full
+#define ESTRTOOBIG  (EMEMORY | 0x4)  // a requested string is too big to fit in the provided buffer
 
 #define EINV        ERR_CAST(0x20)   // Invalid operation/context
 #define EINVPT      (EINV | 0x0)     // Invalid pagetable(happens if an allocator is called in wrong pagetable)
 #define EINVSELF    (EINV | 0x1)     // Invalid self(happens if invalid data structure is passed)
 #define EINVSTATE   (EINV | 0x2)     // Invalid state(happens if a data structure is in invalid state)
 #define EINVAL      (EINV | 0x3)     // Invalid argument(happens if an invalid argument is passed to a function)
+#define EINVPTR     (EINV | 0x4)     // Invalid pointer(happens if an invalid pointer is passed to a function)
 
 #define EUNEXP      ERR_CAST(0x30)   // unexpected error
 #define EUNEXPEXEC  (EUNEXP | 0x0)   // unexpected code execution(Ex. unreachable code is executed)
 #define EUNEXPARG   (EUNEXP | 0x1)   // unexpected argument passed
 
-#define EMISC       ERR_CAST(0x40)   // misc. error
+#define ESWMT       ERR_CAST(0x40)   // software multithreading related errors
+#define ETERMINATED (ESWMT | 0x0)    // attempting to wake up a thread that is already terminated
+#define EINUSE      (ESWMT | 0x1)    // attempting to free a resource that is still in use
+#define EUSEFREED   (ESWMT | 0x2)    // attempting to use a freed resource
+
+#define EMISC       ERR_CAST(0x50)   // misc. error
 #define ENOTFOUND   (EMISC | 0x0)    // a find operation could not find anything
+#define EEXISTS     (EMISC | 0x1)    // a create operation found that the object already exists
+#define EOUTOFRANGE (EMISC | 0x2)    // the given idx is out of range

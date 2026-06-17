@@ -25,7 +25,7 @@ x86_mmu_map_t x86_construct_pagetable(heap_allocator_t* alloca) {
 
     return map;
 }
-x86_mmu_map_t x86_from_handoff(heap_allocator_t* alloca, PagingInfo* pagingInfo) {
+x86_mmu_map_t x86_from_handoff(PagingInfo* pagingInfo) {
     x86_mmu_map_t map;
     map.palloca_ctx = nullptr;
     map.directory = pagingInfo->pageDirectory;
@@ -156,7 +156,7 @@ u32 x86_get_mmu_ctx() {
     return x86_get_cr3_register();
 }
 
-u32 x86_get_ctx_map(x86_mmu_map_t *map) {
+u32 x86_get_ctx_map(const x86_mmu_map_t *map) {
     return (u32)map->directory;
 }
 

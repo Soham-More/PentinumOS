@@ -105,16 +105,31 @@ x86_Panic:
     cli
     hlt
 
-; _import void _asmcall x86_EnableInterrupts();
-global x86_EnableInterrupts
-x86_EnableInterrupts:
+; _import void _asmcall x86_enable_interrupts();
+global x86_enable_interrupts
+x86_enable_interrupts:
     sti
     ret
 
-; _import void _asmcall x86_DisableInterrupts();
-global x86_DisableInterrupts
-x86_DisableInterrupts:
+; _import void _asmcall x86_disable_interrupts();
+global x86_disable_interrupts
+x86_disable_interrupts:
     cli
+    ret
+
+;_import uint32_t _asmcall x86_disable_intr_save();
+global x86_disable_intr_save
+x86_disable_intr_save:
+    pushfd
+    pop eax
+    cli
+    ret
+
+;_import void _asmcall x86_restore_intr_saved(uint32_t eflags);
+global x86_restore_intr_saved
+x86_restore_intr_saved:
+    push dword [esp + 4]
+    popfd
     ret
 
 ; void x86_raise(u32 error_code);

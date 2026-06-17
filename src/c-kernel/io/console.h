@@ -3,11 +3,14 @@
 #include <includes.h>
 #include <memory/memory.h>
 
-#define CON_COLOR_BLACK (0x0)
-#define CON_COLOR_RED   (0x4)
-#define CON_COLOR_BLUE  (0x1)
-#define CON_COLOR_GREEN (0x2)
-#define CON_COLOR_WHITE (0x7)
+#define CON_COLOR_BLACK   (0x0)
+#define CON_COLOR_RED     (0x4)
+#define CON_COLOR_BLUE    (0x1)
+#define CON_COLOR_GREEN   (0x2)
+#define CON_COLOR_WHITE   (0x7)
+#define CON_COLOR_CYAN    (0x3)
+#define CON_COLOR_MAGENTA (0x5)
+#define CON_COLOR_BROWN   (0x6)
 
 typedef struct console_t {
     char name[16];

@@ -19,4 +19,4 @@ void sys_logf(u8 severity, const char* fmt, ...);
 #define log_error(...)     sys_logf(Severity_Error   , __VA_ARGS__)
 #define log_critical(...)  sys_logf(Severity_Critical, __VA_ARGS__)
 
-
+void logging_initialize_post_multitasking();

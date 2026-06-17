@@ -25,8 +25,11 @@ _import u32 _asmcall x86_flushCache();
 
 // interrupts and exceptions
 _import void _asmcall x86_Panic();
-_import void _asmcall x86_EnableInterrupts();
-_import void _asmcall x86_DisableInterrupts();
+_import void _asmcall x86_enable_interrupts();
+_import void _asmcall x86_disable_interrupts();
+
+_import u32 _asmcall x86_disable_intr_save();
+_import void _asmcall x86_restore_intr_saved(u32 eflags);
 
 _import void _asmcall x86_raise(u32 error_code);
 
