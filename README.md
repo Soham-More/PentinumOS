@@ -14,6 +14,7 @@ make
 ```
 
 # Current Features
+## C++ Kernel(src/pos-kernel/)
 - PS/2 Mouse and Keyboard Support[Done]
 - PCI Device Enumeration [Done]
 - Filesystem support [Basic]
@@ -26,12 +27,13 @@ make
 - Heap Memory Management [Basic]
 - VFS [Basic]
 
-# Planned Features
-- Task Scheduler and Multi Tasking
-- DOS like terminal
-- USB Devices
-  - Mouse
-  - Keyboard
+## C Kernel(src/c-kernel/)
+[ ] Boot from USB [Done, Default]
+[ ] Heap Memory Management (Basic)
+[ ] x86 Paging setup
+[ ] Buddy Page Allocator
+[ ] Multitasking (Basic)
+[ ] kmemd(kernel memory deamon) thread
 
 # Known Bugs
 - Uncommenting a printf line in elf.c in bootloader code causes UHCI driver in kernel to crash. [Fixed]
