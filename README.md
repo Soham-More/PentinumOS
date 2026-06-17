@@ -28,12 +28,16 @@ make
 - VFS [Basic]
 
 ## C Kernel(src/c-kernel/)
-- [ ] Boot from USB [Done, Default]
-- [ ] Heap Memory Management (Basic)
-- [ ] x86 Paging setup
-- [ ] Buddy Page Allocator
-- [ ] Multitasking (Basic)
+- [x] Boot from USB [Done, Default]
+- [x] Heap Memory Management (Basic)
+- [x] x86 Paging setup
+- [x] Buddy Page Allocator
+- [x] Multitasking (Basic)
 - [ ] kmemd(kernel memory deamon) thread
+- [ ] PCI Bus thread + device enumeration
+- [ ] USB device driver thread (UHCI)
+- [ ] VFS (basic)
+- [ ] FAT32 (readonly, USB stick)
 
 # Known Bugs
 - Uncommenting a printf line in elf.c in bootloader code causes UHCI driver in kernel to crash. [Fixed]
