@@ -3,7 +3,7 @@
 // panic error codes
 #define PANIC_OK ((u32)0x00)
 
-#define KERNEL_PANIC_BASE        ((u32)0x100)
+#define KERNEL_PANIC_BASE        ((u32)0x800)
 #define PANIC_CLASS_GENERIC      (KERNEL_PANIC_BASE | 0x00)
 #define PANIC_UNEXPECTED_FAILURE (PANIC_CLASS_GENERIC | 0x01)
 

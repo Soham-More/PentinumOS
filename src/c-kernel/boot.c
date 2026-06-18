@@ -19,7 +19,7 @@
 #include <io/logger.h>
 #include <multitasking/kernel.h>
 
-#include <idle/idle.h>
+#include <threads/idle/idle.h>
 
 u8 g_kalloc_buffer[64];
 
@@ -78,7 +78,7 @@ _export void start(KernelInfo kernelInfo)
 	// spawns the idle thread
 	// and kills the boot thread which is executing this function
 	// this thread must die, as this thread is not a real kernel thread
-	panic_on_err(kmt_spawn_idle_thread(&(kthread_desc_t){
+	panic_on_err(kmt_spawn_idle_thread(&(thread_desc_t){
 		.name = "kidle",
 		.ptable = g_idle_thread_init.page_table,
 		.stack_top = __idle_thread_exec_stack_end - 4,

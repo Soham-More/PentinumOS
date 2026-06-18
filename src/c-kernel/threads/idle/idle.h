@@ -1,10 +1,8 @@
 #pragma once
 
-#include <includes.h>
+#include <threads/includes.h>
 
-#include <arch/i686.h>
 #include <io/console.h>
-#include <memory/memory.h>
 #include <arch/paging/paging.h>
 
 typedef struct idle_thread_init_t {

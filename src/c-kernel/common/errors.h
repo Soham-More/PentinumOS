@@ -1,11 +1,11 @@
 #pragma once
 
 // ERROR Checkers
-#define IS_ERR_PTR(x) (((err_t)x) < 4096)
-#define IS_INV_PTR(x) (((err_t)x) < 4096)
-#define ERR_PTR(type, x) (type*)(x)
+#define IS_ERR_PTR(x) (((err_t)x) < 0x1000)
+#define IS_INV_PTR(x) (((err_t)x) < 0x1000)
+#define ERR_PTR(type, x) ((type*)(x))
 #define ERR_CAST(x) ((err_t)x)
-#define IS_ERROR(x) (((err_t)x) < 0)
+#define IS_ERROR(x) (((err_t)x) != ESUCCESS)
 
 // errors
 #define ESUCCESS    ERR_CAST(0x0)   // No error
@@ -38,3 +38,11 @@
 #define ENOTFOUND   (EMISC | 0x0)    // a find operation could not find anything
 #define EEXISTS     (EMISC | 0x1)    // a create operation found that the object already exists
 #define EOUTOFRANGE (EMISC | 0x2)    // the given idx is out of range
+#define ETIMEOUT    (EMISC | 0x3)    // operation timed out
+
+#define ENOTERROR   ERR_CAST(0x70000000) // error code that does not indicate an error
+#define EPENDING   (ENOTERROR | 0x0)    // no return (yet), pending operation
+
+// error tracers, to find out where an error code is coming from
+// for example, ERPC | EINVAL means that the error code is coming from an RPC function, and the error is due to an invalid argument
+#define ERPC 0x100
