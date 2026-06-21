@@ -1,7 +1,7 @@
 #include "paging.h"
 
 #include "../x86.h"
-#include <c-utils/base.h>
+#include <utils/cstdlib.h>
 
 #define X86_PD_FLAGS(map, pd_index) (map->directory[pd_index] & 0xFFF)
 #define X86_PD_TABLE(map, pd_index) (u32*)(map->directory[pd_index] & 0xFFFFF000)
@@ -12,10 +12,9 @@ void initialize_pagetable(x86_mmu_map_t* map, u32* table, u32 pd_index) {
     }
     map->directory[pd_index] = ((u32)table) | (X86_PD_FLAGS(map, pd_index) & 0xFFF) | X86_PAGE_PRESENT;
 }
-x86_mmu_map_t x86_construct_pagetable(heap_allocator_t* alloca) {
+x86_mmu_map_t x86_construct_pagetable(void* page) {
     x86_mmu_map_t map;
-    map.palloca_ctx = construct_page_alloc_ctx(alloca);
-    map.directory = palloc_allocate(map.palloca_ctx, 1);
+    map.directory = (u32*)page;
 
     for(u32 pd_index = 0; pd_index < X86_PAGETABLE_SIZE; pd_index++) {
         u32 flags = X86_PAGE_RW | X86_PAGE_PRESENT;
@@ -27,16 +26,14 @@ x86_mmu_map_t x86_construct_pagetable(heap_allocator_t* alloca) {
 }
 x86_mmu_map_t x86_from_handoff(PagingInfo* pagingInfo) {
     x86_mmu_map_t map;
-    map.palloca_ctx = nullptr;
     map.directory = pagingInfo->pageDirectory;
     return map;
 }
 
-// maps n pages at vaddress to n pages at paddress
-err_t x86_map_pages(x86_mmu_map_t* map, u32 vaddress, u32 paddress, u32 pages, u32 flags) {
+// returns the number of pages that need to be allocated to map the given range
+usize x86_map_pages_get_page_count(x86_mmu_map_t* map, u32 vaddress, u32 pages) {
     // align adresses to 4KiB
     vaddress &= 0xFFFFF000;
-    paddress &= 0xFFFFF000;
 
     u32  table_alloc_count = 0;
     u32  table_alloc_idx = 0;
@@ -44,7 +41,6 @@ err_t x86_map_pages(x86_mmu_map_t* map, u32 vaddress, u32 paddress, u32 pages, u
 
     for(u32 page_index = 0; page_index < pages; page_index += 1) {
         u32 pageVirtualAddress = vaddress + page_index * X86_PAGE_SIZE;
-        u32 pagePhysicalAddress = paddress + page_index * X86_PAGE_SIZE;
 
         u32 indexPD = (pageVirtualAddress) >> 22;
         u32 indexPT = (pageVirtualAddress >> 12) & 0x03FF;
@@ -54,14 +50,21 @@ err_t x86_map_pages(x86_mmu_map_t* map, u32 vaddress, u32 paddress, u32 pages, u
 
         table_alloc_count++;
     }
+    return table_alloc_count;
+}
+// maps n pages at vaddress to n pages at paddress
+err_t x86_map_pages(x86_mmu_map_t* map, u32 vaddress, u32 paddress, u32 pages, u32 flags, void* alloc_pages, usize alloc_page_count) {
+    // align adresses to 4KiB
+    vaddress &= 0xFFFFF000;
+    paddress &= 0xFFFFF000;
 
-    // allocate all the needed page tables in one go
-    // so that on error, the page table is not modified.
-    if(table_alloc_count > 0) {
-        if(map->palloca_ctx == nullptr) return EINVSELF;
-        tables = (u32*) palloc_allocate(map->palloca_ctx, table_alloc_count);
-        if(IS_ERR_PTR(tables)) return ERR_CAST(tables);
-    }
+    u32  table_alloc_idx = 0;
+    u32* tables = nullptr;
+
+    tables = (u32*) alloc_pages;
+
+    usize req_page_count = x86_map_pages_get_page_count(map, vaddress, pages);
+    if(req_page_count > alloc_page_count) return ENOMEM;
 
     for(u32 page_index = 0; page_index < pages; page_index += 1) {
         u32 pageVirtualAddress = vaddress + page_index * X86_PAGE_SIZE;

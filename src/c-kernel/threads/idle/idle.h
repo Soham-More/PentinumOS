@@ -2,7 +2,7 @@
 
 #include <threads/includes.h>
 
-#include <io/console.h>
+#include <resources/console.h>
 #include <arch/paging/paging.h>
 
 typedef struct idle_thread_init_t {

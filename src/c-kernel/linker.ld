@@ -20,13 +20,13 @@ SECTIONS
     . += stack_size;
     __idle_thread_exec_stack_end = .;
 
-    __kmemd_thread_intr_stack_start = .;
+    __syscore_thread_intr_stack_start = .;
     . += stack_size;
-    __kmemd_thread_intr_stack_end = .;
+    __syscore_thread_intr_stack_end = .;
 
-    __kmemd_thread_exec_stack_start = .;
+    __syscore_thread_exec_stack_start = .;
     . += stack_size;
-    __kmemd_thread_exec_stack_end = .;
+    __syscore_thread_exec_stack_end = .;
 
     __stack_rsvd_end = .;
 
@@ -62,9 +62,9 @@ SECTIONS
     __kmt_heap_end = .;
 
     . = ALIGN(0x1000);
-    __kmemd_heap_start = .;
+    __syscore_heap_start = .;
     . += heap_size;
-    __kmemd_heap_end = .;
+    __syscore_heap_end = .;
 
     __heap_rsvd_end = .;
 

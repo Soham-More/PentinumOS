@@ -1,6 +1,6 @@
 #include "ISR.h"
 
-#include <io/logger.h>
+#include <utils/logger.h>
 #include "isr_gen.h"
 #include "../IDT/IDT.h"
 

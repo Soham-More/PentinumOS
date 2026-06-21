@@ -2,12 +2,11 @@
 #pragma once
 
 #include <includes.h>
-// c-utils
-#include <c-utils/base.h>
+// utils
+#include <utils/cstdlib.h>
 // arch
 #include <arch/i686.h>
 // logging
-#include <hw/cpu.h>
-#include <io/logger.h>
+#include <utils/logger.h>
 // multitasking
-#include <multitasking/kernel.h>
+#include <syscore/threads.h>
