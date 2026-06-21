@@ -1,7 +1,7 @@
 #pragma once
 
 #include <includes.h>
-#include <handoff/handoff.h>
+#include <boot/handoff/handoff.h>
 #include "../defs.h"
 
 #define X86_PAGE_PRESENT 0x01

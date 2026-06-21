@@ -3,6 +3,8 @@
 #include "priv.h"
 #include "buddy.h"
 
+#include <panic/panic.h>
+
 // allocate page_cnt pages(may allocate more)
 page_alloc_info_t* allocate_pages(page_mgr_ctx_t* ctx, usize page_cnt) {
     u8 req_order = get_highest_setbit_loc(page_cnt);
@@ -17,10 +19,10 @@ page_alloc_info_t* allocate_pages(page_mgr_ctx_t* ctx, usize page_cnt) {
     pnode_set_status(node, PNODE_USED, false, false);
 
     if(ctx->alloc_pages_head) {
-        ctx->alloc_pages_tail->next = heap_alloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
+        ctx->alloc_pages_tail->next = malloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
         ctx->alloc_pages_tail = ctx->alloc_pages_tail->next;
     } else {
-        ctx->alloc_pages_head = heap_alloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
+        ctx->alloc_pages_head = malloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
         ctx->alloc_pages_tail = ctx->alloc_pages_head;
     }
 
@@ -51,10 +53,10 @@ page_alloc_info_t* allocate_mapped_pages(page_mgr_ctx_t* ctx, u16 status, usize 
     pnode_set_flags(node, PNODE_USED | validated_map, false, false);
 
     if(ctx->alloc_pages_head) {
-        ctx->alloc_pages_tail->next = heap_alloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
+        ctx->alloc_pages_tail->next = malloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
         ctx->alloc_pages_tail = ctx->alloc_pages_tail->next;
     } else {
-        ctx->alloc_pages_head = heap_alloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
+        ctx->alloc_pages_head = malloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
         ctx->alloc_pages_tail = ctx->alloc_pages_head;
     }
 
@@ -126,7 +128,7 @@ err_t pmgr_alloc_pages(page_mgr_ctx_t* ctx, ptr_t vaddress, usize page_cnt, u32 
     usize req_page_cnt = x86_map_pages_get_page_count(&ctx->ptable, vaddress, page_cnt);
     // need to allocate pages for page tables
     if(req_page_cnt) {
-        page_alloc_info_t* mapping_pages_info = allocate_mapped_pages(ctx, PNODE_BLK_MAPPED, req_page_cnt);
+        page_alloc_info_t* mapping_pages_info = allocate_pages(ctx, req_page_cnt);
         if(IS_ERR_PTR(mapping_pages_info)) return ERR_CAST(mapping_pages_info);
         mapping_pages = mapping_pages_info->memory;
     }
@@ -138,7 +140,25 @@ err_t pmgr_alloc_pages(page_mgr_ctx_t* ctx, ptr_t vaddress, usize page_cnt, u32 
 
 // allocate unmapped pages & map them to a virtual address
 err_t pmgr_alloc_unmapped_pages(page_mgr_ctx_t* ctx, ptr_t vaddress, usize page_cnt, u32 map_flags, u32 page_flags) {
-    
+    if(!ctx) return EINVAL;
+    if(page_cnt == 0) return ESUCCESS;
+
+    page_alloc_info_t* pages = allocate_mapped_pages(ctx, map_flags, page_cnt);
+    if(IS_ERR_PTR(pages)) return ERR_CAST(pages);
+
+    // map the allocated pages to the virtual address
+    void* mapping_pages = nullptr;
+    usize req_page_cnt = x86_map_pages_get_page_count(&ctx->ptable, vaddress, page_cnt);
+    // need to allocate pages for page tables
+    if(req_page_cnt) {
+        page_alloc_info_t* mapping_pages_info = allocate_pages(ctx, req_page_cnt);
+        if(IS_ERR_PTR(mapping_pages_info)) return ERR_CAST(mapping_pages_info);
+        mapping_pages = mapping_pages_info->memory;
+    }
+    err_t err = x86_map_pages(&ctx->ptable, vaddress, (ptr_t)pages->memory, page_cnt, page_flags, mapping_pages, req_page_cnt);
+    if(err != ESUCCESS) return err;
+
+    return ESUCCESS;
 }
 
 // destroy the page allocator context and free all allocated pages

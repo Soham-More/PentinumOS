@@ -2,7 +2,7 @@
 #include <stdarg.h>
 
 #include <boot/init.h>
-#include <handoff/handoff.h>
+#include "handoff/handoff.h"
 
 #include <pools.h>
 #include <panic/panic.h>
@@ -39,6 +39,7 @@ _export void start(KernelInfo kernelInfo)
 	g_idle_thread_init.earlyconsole = vga_txt_get_earlyconsole();
 	initialize_console_manager(g_idle_thread_init.earlyconsole);
 	tty_t* tty0 = initialize_tty("tty0", con_get_safe());
+	tty_clear(tty0);
 
 	logging_set_tty(tty0);
 
@@ -72,12 +73,14 @@ _export void start(KernelInfo kernelInfo)
 	
 	// setup multitasking
 	initialize_multitasking(&idle_ptable, kalloca);
-	// setup logging after multitasking is enabled, so that logging is thread safe
-	logging_initialize_post_multitasking();
 	log_info("multitasking... ok\n");
+	// setup logging after multitasking is enabled, so that logging is thread safe
+	g_shared_object_allocator = kalloca;
+	tty_t* tty1 = construct_tty("tty1", con_get_safe(), 64, TTY_USE_LOCKS | TTY_FLUSH_ON_NEWLINE);
+	logging_set_tty(tty1);
+	log_info("moving to tty1... ok\n");
 	log_info("handoff to idle thread\n");
 
-	g_shared_object_allocator = kalloca;
 	g_idle_thread_init.allocator = kalloca;
 	g_idle_thread_init.page_table = idle_ptable;
 
@@ -95,7 +98,7 @@ heap_allocator_t* m_aquire_global_allocator() {
 	}
 	return g_shared_object_allocator;
 }
-void m_release_global_allocator(volatile heap_allocator_t** allocator) {
+void m_release_global_allocator(heap_allocator_t** allocator) {
 	err_t err = kmt_unlock_mutex(g_shared_object_mutex);
 	if(err != ESUCCESS) {
 		panic(PANIC_UNEXPECTED_FAILURE, "Failed to release global allocator lock");

@@ -41,5 +41,5 @@ void tty_printf(u32 color, tty_t* tty, const char* fmt, ...);
 // lock and unlock the tty
 // when you need guarenteed exclusive access to the tty
 tty_t* tty_lock(tty_t* tty);
-void tty_unlock(volatile tty_t** tty);
-#define TTY_AQUIRE_SCOPED_LOCK(tty) volatile tty_t* __tty_lock __attribute__((cleanup(tty_unlock))) = tty_lock((tty));
+void tty_unlock(tty_t** tty);
+#define TTY_AQUIRE_SCOPED_LOCK(tty) tty_t* __tty_lock __attribute__((cleanup(tty_unlock))) = tty_lock((tty));

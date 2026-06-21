@@ -10,4 +10,3 @@ void syscore_thread_entry();
 
 // sanity check function for syscore thread
 err_t syscore_echo_test(const char* test);
-page_alloc_info_t syscore_alloc_pages(usize page_count);

@@ -2,6 +2,7 @@
 
 #include <boot/init.h>
 #include <utils/heap.h>
+#include <utils/cstdlib.h>
 
 void con_ignore_write(console_t *, const char *, usize){}
 i32  con_ignore_read (console_t *, char*, usize){return ESUCCESS;}

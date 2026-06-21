@@ -7,8 +7,8 @@
 
 #include <resources/timer.h>
 
-#include "../mem/palloc.h"
-#include "../panic/panic.h"
+#include <panic/panic.h>
+#include "../mem/pagemgr.h"
 
 #define THREAD_STATUS_TERMINATED ((u8)0x00)
 #define THREAD_STATUS_READY      ((u8)0x01)
@@ -28,7 +28,7 @@
 #define KMT_TIME_SLICE_US 20
 #define KMT_AGE_TICKS 10
 
-#define STOP_PREEMPTING() volatile u32 _kmt_flags __attribute__((cleanup(kmt_restore_flags))) = g_kmt_ctx.flags; kmt_disable_preemption();
+#define STOP_PREEMPTING() u32 _kmt_flags __attribute__((cleanup(kmt_restore_flags))) = g_kmt_ctx.flags; kmt_disable_preemption();
 
 typedef struct tcb_t {
     void* esp;
@@ -49,7 +49,7 @@ typedef struct thread_info_t {
     // thread info
     char name[16];
     // thread objects
-    page_alloc_ctx_t* palloca_ctx;
+    //page_alloc_ctx_t* palloca_ctx;
     heap_allocator_t* heap;
     x86_mmu_map_t     ptable;
 
@@ -300,7 +300,7 @@ void initialize_multitasking(x86_mmu_map_t* handoff_ptable, heap_allocator_t* ka
     g_kmt_ctx.threads[0].ptable = *handoff_ptable;
     // the boot thread is not a real thread, it will never be switched into, so we don't need to worry about its heap
     g_kmt_ctx.threads[0].heap = nullptr;
-    g_kmt_ctx.threads[0].palloca_ctx = nullptr;
+    //g_kmt_ctx.threads[0].palloca_ctx = nullptr;
     g_kmt_ctx.threads[0].rpc_head = nullptr;
     g_kmt_ctx.threads[0].rpc_tail = nullptr;
 
@@ -363,7 +363,7 @@ thread_uid_t kmt_create_thread(const thread_desc_t *desc) {
     memcpy(g_kmt_ctx.threads[new_thread_id].name, desc->name, strlen(desc->name) + 1);
     g_kmt_ctx.threads[new_thread_id].ptable = desc->ptable;
     g_kmt_ctx.threads[new_thread_id].heap = construct_heap(g_kmt_ctx.kalloca, desc->heap_base, desc->heap_size);
-    g_kmt_ctx.threads[new_thread_id].palloca_ctx = construct_page_alloc_ctx(g_kmt_ctx.threads[new_thread_id].heap);
+    //g_kmt_ctx.threads[new_thread_id].palloca_ctx = construct_page_alloc_ctx(g_kmt_ctx.threads[new_thread_id].heap);
     g_kmt_ctx.threads[new_thread_id].rpc_head = nullptr;
     g_kmt_ctx.threads[new_thread_id].rpc_tail = nullptr;
 
@@ -396,7 +396,6 @@ thread_uid_t kmt_create_thread(const thread_desc_t *desc) {
 
     return new_thread_id;
 }
-
 void kmt_spawn_idle_thread(thread_entry_point_t entry, x86_mmu_map_t ptable) {
     kmt_disable_preemption();
 
@@ -421,7 +420,6 @@ void kmt_spawn_idle_thread(thread_entry_point_t entry, x86_mmu_map_t ptable) {
     g_kmt_ctx.flags |= KMT_PREEMPTION_ENABLED;
     // finally, we can kill the thread
     kmt_kill_current_thread();
-    return ESUCCESS;
 }
 
 err_t kmt_wakeup_thread(thread_uid_t thread_id) {
@@ -709,11 +707,6 @@ heap_allocator_t* kmt_get_heap() {
     thread_uid_t thread_id = g_kmt_ctx.current_thread;
     if(thread_id >= g_kmt_ctx.thread_count) return ERR_PTR(heap_allocator_t, EOUTOFRANGE);
     return g_kmt_ctx.threads[thread_id].heap;
-}
-page_alloc_ctx_t* kmt_get_page_alloc_ctx() {
-    thread_uid_t thread_id = g_kmt_ctx.current_thread;
-    if(thread_id >= g_kmt_ctx.thread_count) return ERR_PTR(page_alloc_ctx_t, EOUTOFRANGE);
-    return g_kmt_ctx.threads[thread_id].palloca_ctx;
 }
 
 u8   kmt_get_thread_priority(thread_uid_t thread_id) {

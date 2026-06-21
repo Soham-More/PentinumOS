@@ -3,7 +3,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
-#include "cstdlib.h"
+#include <utils/cstdlib.h>
 
 #include <boot/init.h>
 #include <arch/x86.h>
@@ -72,7 +72,7 @@ tty_t* tty_lock(tty_t* tty) {
     }
     return tty;
 }
-void tty_unlock(volatile tty_t** tty) {
+void tty_unlock(tty_t** tty) {
     if(*tty == nullptr) return;
     if(((*tty)->flags & TTY_USE_LOCKS) == 0) return;
     err_t err = kmt_unlock_mutex((*tty)->mutex);
@@ -124,20 +124,22 @@ void tty_vprintf(u32 color, tty_t* tty, const char* fmt, va_list vargs) {
     g_panic = false;
     TTY_AQUIRE_SCOPED_LOCK(tty);
     u32 old_color = tty->console->text_color;
+    // flush the buffer if the color is changing, so that the color change takes effect immediately
+    if(old_color != color) tty_flush(tty);
     tty->console->text_color = color;
     gp_printer(tty, fmt, strlen(fmt), &vargs);
-    tty->console->text_color = old_color;
 }
 void tty_printf(u32 color, tty_t* tty, const char* fmt, ...) {
     g_panic = false;
     TTY_AQUIRE_SCOPED_LOCK(tty);
     u32 old_color = tty->console->text_color;
+    // flush the buffer if the color is changing, so that the color change takes effect immediately
+    if(old_color != color) tty_flush(tty);
     tty->console->text_color = color;
     va_list vargs;
     va_start(vargs, fmt);
     gp_printer(tty, fmt, strlen(fmt), &vargs);
     va_end(vargs);
-    tty->console->text_color = old_color;
 }
 
 void tty_panic_vprintf(const char* fmt, va_list vargs) {

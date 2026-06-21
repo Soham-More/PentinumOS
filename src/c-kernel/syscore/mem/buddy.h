@@ -10,6 +10,13 @@
 #include <defs/page_status.h>
 #include <utils/heap.h>
 
+#define BA_MAX_ORDER 20
+
+#define BA_IS_LEAF(x) IS_INV_PTR((x)->children)
+#define BA_STATUS(flags) ((flags) & PNODE_STATUS_MASK)
+#define BA_MAPPING(flags) ((flags) & PNODE_MAP_MASK)
+#define BA_FLAGS(flags) ((flags) & PNODE_FLAG_MASK)
+
 // NOTE: (flags & PNODE_AVAIL) && IS_INV_PTR(children) is invalid state
 typedef struct ba_node_t {
     struct ba_node_t* parent;

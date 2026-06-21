@@ -4,16 +4,18 @@
 
 #include <pools.h>
 #include <utils/logger.h>
-#include <hw/cpu.h>
+#include <panic/panic.h>
 
-#include <multitasking/kernel.h>
-#include <threads/syscore/syscore.h>
+#include <syscore/threads.h>
+#include <syscore/syscore.h>
 
 
 idle_thread_init_t g_idle_thread_init;
 
 void idle_thread_entry() {
     log_info("idle thread started successfully\n");
+
+    /*
     
     // create the syscore thread, which will be used to manage the memory
     thread_uid_t syscore_uid = kmt_create_thread(&(thread_desc_t){
@@ -43,6 +45,8 @@ void idle_thread_entry() {
     panic_if(allocated_pages.error != ESUCCESS, allocated_pages.error, "Failed to allocate pages from syscore thread");
 
     log_info("syscore thread allocated 4 pages at address {p}\n", allocated_pages.memory);
+
+    */
 
     for(;;);
 }

@@ -2,15 +2,9 @@
 #include <boot/init.h>
 
 #include "priv.h"
+#include <panic/panic.h>
 
 #include <pools.h>
-
-#define BA_MAX_ORDER 20
-
-#define BA_IS_LEAF(x) IS_INV_PTR((x)->children)
-#define BA_STATUS(flags) ((flags) & PNODE_STATUS_MASK)
-#define BA_MAPPING(flags) ((flags) & PNODE_MAP_MASK)
-#define BA_FLAGS(flags) ((flags) & PNODE_FLAG_MASK)
 
 struct {
     heap_allocator_t* allocator;

@@ -10,8 +10,8 @@
 #include "handoff/handoff.h"
 
 heap_allocator_t* m_aquire_global_allocator();
-void m_release_global_allocator(volatile heap_allocator_t** allocator);
-#define GET_GLOBAL_ALLOCATOR(galloc) volatile heap_allocator_t* galloc __attribute__((cleanup(m_release_global_allocator))) = m_aquire_global_allocator();
+void m_release_global_allocator(heap_allocator_t** allocator);
+#define GET_GLOBAL_ALLOCATOR(galloc) heap_allocator_t* galloc __attribute__((cleanup(m_release_global_allocator))) = m_aquire_global_allocator();
 
 void initialize_timer();
 tty_t* initialize_tty(const char* name, console_t* earlyconsole);
