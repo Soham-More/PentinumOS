@@ -2,6 +2,7 @@
 
 #include "../x86.h"
 #include <utils/cstdlib.h>
+#include <utils/logger.h>
 
 #define X86_PD_FLAGS(map, pd_index) (map->directory[pd_index] & 0xFFF)
 #define X86_PD_TABLE(map, pd_index) (u32*)(map->directory[pd_index] & 0xFFFFF000)
@@ -24,6 +25,12 @@ x86_mmu_map_t x86_construct_pagetable(void* page) {
 
     return map;
 }
+x86_mmu_map_t x86_copy_pagetable(void* page, x86_mmu_map_t* src) {
+    x86_mmu_map_t map;
+    map.directory = (u32*)page;
+    memcpy(map.directory, src->directory, X86_PAGETABLE_SIZE * sizeof(u32));
+    return map;
+}
 x86_mmu_map_t x86_from_handoff(PagingInfo* pagingInfo) {
     x86_mmu_map_t map;
     map.directory = pagingInfo->pageDirectory;
@@ -39,6 +46,8 @@ usize x86_map_pages_get_page_count(x86_mmu_map_t* map, u32 vaddress, u32 pages) 
     u32  table_alloc_idx = 0;
     u32* tables = nullptr;
 
+    u32 lastPD_idx = invalid_u32;
+
     for(u32 page_index = 0; page_index < pages; page_index += 1) {
         u32 pageVirtualAddress = vaddress + page_index * X86_PAGE_SIZE;
 
@@ -48,7 +57,11 @@ usize x86_map_pages_get_page_count(x86_mmu_map_t* map, u32 vaddress, u32 pages) 
         // if page table is not present - then schedule to allocate one!
         if(map->directory[indexPD] & X86_PAGE_PRESENT) continue;
 
-        table_alloc_count++;
+        // if the page directory index is different from the last one, then we need to allocate a new page table
+        if(indexPD != lastPD_idx) {
+            lastPD_idx = indexPD;
+            table_alloc_count++;
+        }
     }
     return table_alloc_count;
 }
@@ -74,7 +87,8 @@ err_t x86_map_pages(x86_mmu_map_t* map, u32 vaddress, u32 paddress, u32 pages, u
         u32 indexPT = (pageVirtualAddress >> 12) & 0x03FF;
 
         // if page table is not present - then allocate one!
-        if(map->directory[indexPD] & X86_PAGE_PRESENT == 0) {
+        if((map->directory[indexPD] & X86_PAGE_PRESENT) == 0) {
+            if(table_alloc_idx >= alloc_page_count) return ENOMEM;
             initialize_pagetable(map, tables + (table_alloc_idx * X86_PAGETABLE_SIZE), indexPD);
             table_alloc_idx++;
         }
@@ -165,4 +179,61 @@ u32 x86_get_ctx_map(const x86_mmu_map_t *map) {
 
 void x86_load_mmu_map(x86_mmu_map_t* map) {
     x86_set_page_directory((void*)map->directory);
+}
+
+// get the physical address of the virtual address in the given map
+ptr_t x86_get_phys_addr(const x86_mmu_map_t* map, ptr_t vaddress) {
+    // align adresses to 4KiB
+    u32 offset = vaddress & 0xFFF;
+    vaddress = vaddress & 0xFFFFF000;
+
+    ptr_t indexPD = (vaddress) >> 22;
+    ptr_t indexPT = (vaddress >> 12) & 0x03FF;
+
+    // get PT
+    ptr_t* pageTable = X86_PD_TABLE(map, indexPD);
+    if(pageTable == nullptr || X86_PD_FLAGS(map, indexPD) & X86_PAGE_PRESENT == 0) return ENOPAGE;
+
+    // get PT entry
+    ptr_t paddrPage = pageTable[indexPT] & 0xFFFFF000;
+
+    return paddrPage + offset;
+}
+
+void log_mmu_map(x86_mmu_map_t* map) {
+    log_info("MMU Map at directory {p}:\n", map->directory);
+
+    u32 vbegin = 0; u32 pbegin = 0;
+    u32 vend = 0; u32 pend = 0xFFFFFFFF;
+    u32 pflags = 0; u32 last_flags = 0xFFFFFFFF;
+
+    // iterate through page directory entries
+    // print ranges of contiguous pages with the same flags
+    for(u32 pd_index = 0; pd_index < X86_PAGETABLE_SIZE; pd_index++) {
+        if((X86_PD_FLAGS(map, pd_index) & X86_PAGE_PRESENT) == 0) continue;
+        u32* pageTable = X86_PD_TABLE(map, pd_index);
+        for(u32 pt_index = 0; pt_index < X86_PAGETABLE_SIZE; pt_index++) {
+            if((pageTable[pt_index] & X86_PAGE_PRESENT) == 0) continue;
+
+            u32 pageVirtualAddress = (pd_index << 22) | (pt_index << 12);
+            u32 pagePhysicalAddress = pageTable[pt_index] & 0xFFFFF000;
+            // ignore the accessed and dirty flags when comparing flags
+            u32 flags = (pageTable[pt_index] & 0xFFF) & ~(X86_PAGE_TABLE_ENTRY_ACCESSED | X86_PAGE_TABLE_ENTRY_DIRTY);
+
+            if((pend != pagePhysicalAddress) || (vend != pageVirtualAddress) || (flags != pflags)) {
+                if(pend != 0xFFFFFFFF) {
+                    log_info("\tVA: {p}-{p}, PA: {p}-{p}, Flags: {x}\n", vbegin, vend, pbegin, pend, pflags);
+                }
+                vbegin = pageVirtualAddress;
+                pbegin = pagePhysicalAddress;
+                vend = pageVirtualAddress + X86_PAGE_SIZE;
+                pend = pagePhysicalAddress + X86_PAGE_SIZE;
+                pflags = flags;
+            } else {
+                vend += X86_PAGE_SIZE;
+                pend += X86_PAGE_SIZE;
+            }
+        }
+    }
+    log_info("\tVA: {p}-{p}, PA: {p}-{p}, Flags: {x}\n", vbegin, vend, pbegin, pend, pflags);
 }

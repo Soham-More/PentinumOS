@@ -414,6 +414,10 @@ err_t initialize_buddy_allocator(heap_allocator_t* heap_allocator, KernelInfo* k
     err = ba_mark_pages(((ptr_t)kInfo->pagingInfo->pageTableArray) >> 12, kInfo->pagingInfo->table_count, PNODE_ON_RAM | PNODE_USED, false, false);
     if(err != ESUCCESS) return err;
 
+    // special case, mark the video memory as used
+    err = ba_mark_pages(0xB8000 >> 12, 1, PNODE_ON_RAM | PNODE_USED, false, false);
+    if(err != ESUCCESS) return err;
+
     return ESUCCESS;
 }
 
@@ -499,3 +503,41 @@ void log_page_allocator_status() {
 
     log_info("[buddy-allocator](log_page_allocator_status) Largest Contiguous Free Memory: {u} MiB\n", largest_contiguous_memory >> 20);
 }
+
+x86_mmu_map_t make_template_page_table() {
+    page_ptr_t pages = (page_ptr_t) __ptable_template_start;
+    usize page_count = div_floor(PTR_DIFF_I32(__ptable_template_end, __ptable_template_start), X86_PAGE_SIZE);
+    usize page_idx = 0;
+
+    x86_mmu_map_t ptable = x86_construct_pagetable(&pages[page_idx]); page_idx++;
+    
+    ba_node_t* curr_node = ba_get_min_leaf(g_buddy_alloc.root);
+    while(ERR_CAST(curr_node) != ENOPAGE) {
+        panic_on_err_ptr(curr_node, "unexpected error");
+        
+        if(BA_FLAGS(curr_node->flags) != (PNODE_ON_RAM | PNODE_USED)) {
+            curr_node = ba_get_next_leaf(curr_node);
+            continue;
+        }
+        u32 size = (1 << curr_node->order);
+        u32 paddress = curr_node->address * X86_PAGE_SIZE;
+
+        // map the pages in the template page table to the physical address of the node
+        usize req_pages = x86_map_pages_get_page_count(&ptable, paddress, size);
+        if((page_idx + req_pages) > page_count) {
+            panic(PANIC_OBJ_POOL_FULL, "not enough pages in the template page table to map all used pages in the buddy allocator");
+        }
+        // identity map the pages in the template page table
+        err_t err = x86_map_pages(&ptable, paddress, paddress, size, X86_PAGE_PRESENT | X86_PAGE_RW, &pages[page_idx], req_pages);
+        if(err != ESUCCESS) {
+            panic(PANIC_UNEXPECTED_FAILURE, "failed to map pages in the template page table. error code: {x}", err);
+        }
+        page_idx += req_pages;
+
+        curr_node = ba_get_next_leaf(curr_node);
+    }
+
+    return ptable;
+}
+
+

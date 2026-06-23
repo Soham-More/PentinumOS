@@ -62,3 +62,5 @@ ba_node_t* ba_find_node(ptr_t address, i8 req_order);
 // mark some pages with flags
 err_t ba_mark_pages(ptr_t address, usize page_cnt, u8 flags, bool bypass, bool fail_silently);
 
+//
+x86_mmu_map_t make_template_page_table();

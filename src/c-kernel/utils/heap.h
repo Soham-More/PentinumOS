@@ -25,3 +25,6 @@ void log_heap_status(heap_allocator_t* heap_allocator);
 
 void free(heap_allocator_t* heap_allocator, void* ptr);
 
+// returns the original pool pointer back to the caller, and destroys the heap allocator object
+void* destroy_heap(heap_allocator_t* global_allocator, heap_allocator_t* heap_allocator);
+

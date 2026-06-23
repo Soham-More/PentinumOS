@@ -25,6 +25,9 @@ _import u8 __kmt_heap_end[];
 _import u8 __syscore_heap_start[];
 _import u8 __syscore_heap_end[];
 
+_import u8 __kmt_rpc_heap_start[];
+_import u8 __kmt_rpc_heap_end[];
+
 // thread stacks
 _import u8 __idle_thread_intr_stack_start[];
 _import u8 __idle_thread_intr_stack_end[];
@@ -37,6 +40,10 @@ _import u8 __syscore_thread_intr_stack_end[];
 
 _import u8 __syscore_thread_exec_stack_start[];
 _import u8 __syscore_thread_exec_stack_end[];
+
+// page tables
+_import u8 __ptable_template_start[];
+_import u8 __ptable_template_end[];
 
 //_import char __page_allocator_start[];
 //_import char __page_allocator_end[];

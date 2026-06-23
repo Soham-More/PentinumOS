@@ -321,3 +321,12 @@ void free(heap_allocator_t* heap_allocator, void* ptr)
     }
 }
 
+// returns the original pool pointer to the caller, and destroys the heap allocator object
+void* destroy_heap(heap_allocator_t* global_allocator, heap_allocator_t* heap_allocator) {
+    if(IS_ERR_PTR(heap_allocator)) return ERR_PTR(void*, EINVPTR);
+    if(IS_ERR_PTR(global_allocator)) return ERR_PTR(void*, EINVPTR);
+
+    void* pool_ptr = heap_allocator->heap_bin_top;
+    free(global_allocator, heap_allocator);
+    return pool_ptr;
+}

@@ -11,12 +11,16 @@
 #define X86_PAGE_DISABLE_CACHING 0x10
 #define X86_PAGE_WRITETHROUGH 0x08
 
+#define X86_PAGE_TABLE_ENTRY_DIRTY    ((ptr_t)0x40)
+#define X86_PAGE_TABLE_ENTRY_ACCESSED ((ptr_t)0x20)
+
 typedef struct x86_mmu_map_t {
     u32* directory;
 } x86_mmu_map_t;
 
 // makes an empty pagetable with maps
 x86_mmu_map_t x86_construct_pagetable(void* page);
+x86_mmu_map_t x86_copy_pagetable(void* page, x86_mmu_map_t* src);
 x86_mmu_map_t x86_from_handoff(PagingInfo* pagingInfo);
 
 // returns the number of pages that need to be allocated to map the given range
@@ -38,3 +42,8 @@ u32 x86_get_ctx_map(const x86_mmu_map_t* map);
 void x86_load_mmu_map(x86_mmu_map_t* map);
 // flushes the TLB cache
 void x86_refresh_mmu_map();
+
+// get the physical address of the virtual address in the given map
+ptr_t x86_get_phys_addr(const x86_mmu_map_t* map, ptr_t vaddress);
+
+void log_mmu_map(x86_mmu_map_t* map);

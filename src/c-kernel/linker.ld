@@ -3,7 +3,8 @@ OUTPUT_FORMAT("elf32-i386")
 stack = 0x00500000;
 phys  = 0x00600000;
 stack_size    = 0x4000; /* 16 KiB main (intr) stack */
-heap_size     = 0x200000;  /* 1MB heap */
+heap_size     = 0x200000;  /* 2MiB heap */
+ptable_size   = 0x010000;  /* 64KiB page table */
 dbgstack_size = 0x1000; /* 4 KiB stack(1 page) */
 
 SECTIONS
@@ -65,8 +66,16 @@ SECTIONS
     __syscore_heap_start = .;
     . += heap_size;
     __syscore_heap_end = .;
+    
+    __kmt_rpc_heap_start = .;
+    . += heap_size;
+    __kmt_rpc_heap_end = .;
 
     __heap_rsvd_end = .;
+
+    __ptable_template_start = .;
+    . += ptable_size;
+    __ptable_template_end = .;
 
 
     __end = .;

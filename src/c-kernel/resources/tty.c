@@ -110,7 +110,7 @@ void gp_putc(void* ctx, char ch) {
         return;
     }
     if(tty->buffer_pos == tty->buffer_size) {
-        tty->console->write(tty->console, tty->buffer, sizeof(tty->buffer));
+        tty->console->write(tty->console, tty->buffer, tty->buffer_pos);
         tty->buffer_pos = 0;
     }
 

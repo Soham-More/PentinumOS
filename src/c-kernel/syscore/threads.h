@@ -7,7 +7,9 @@
 
 // mt limits
 #define MAX_KERNEL_THREADS 256
-#define KMT_MAX_MUTEXES 1024
+#define KMT_MAX_MUTEXES   1024
+#define KMT_MAX_RPC_PIPES 1024
+#define KMT_MAX_RPC_BUFFER_SIZE 128
 
 // policies
 #define KMT_POLICY_ROUND_ROBIN 0
@@ -59,15 +61,27 @@ err_t kmt_free_mutex(thread_mutex_t mutex);
 
 // ipc-related functions will go here
 
+// get the heap allocator for RPC communication
+// this heap is shared between all threads for RPC communication, so it must be used
+// for all RPC request and response buffers to ensure that the memory is accessible by both the caller and callee threads
+heap_allocator_t* kmt_get_rpc_heap();
+
 // this function will block until the callee thread has finished executing the function and returned a result
+// NOTE: the request and response buffers must be allocated using the kmt_get_rpc_heap() heap allocator by the caller
+// as this heap is shared between all threads for RPC communication
+// otherwise this could result in a page fault at best
 err_t kmt_rpc_call(thread_uid_t callee, u32 function, void* request, usize request_size, void* response, usize response_size, err_t* return_code);
 // listen for RPC calls from other threads, and execute the specified function when a call is received
 thread_rpc_desc_t kmt_rpc_listen();
 // return a response to an RPC call
 err_t kmt_rpc_return(const thread_rpc_desc_t* desc, err_t return_code);
 
+
 // thread info
 thread_uid_t kmt_get_current_thread();
 thread_uid_t kmt_get_thread(const char* name);
 const char* kmt_get_thread_name(thread_uid_t thread_id);
 heap_allocator_t* kmt_get_heap();
+
+// get physical address of a virtual address in the current thread's page table
+ptr_t kmt_get_phys_addr(ptr_t vaddress);

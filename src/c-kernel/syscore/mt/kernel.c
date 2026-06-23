@@ -28,37 +28,6 @@
 #define KMT_TIME_SLICE_US 20
 #define KMT_AGE_TICKS 10
 
-#define STOP_PREEMPTING() u32 _kmt_flags __attribute__((cleanup(kmt_restore_flags))) = g_kmt_ctx.flags; kmt_disable_preemption();
-
-typedef struct tcb_t {
-    void* esp;
-    void* esp0;
-    u32  cr3;
-    u32  age;
-    u8 status;
-    u8 priority;
-    u8 base_priority;
-} _packed tcb_t;
-
-typedef struct kmt_rpc_queue_node_t {
-    thread_rpc_desc_t rpc_desc;
-    struct kmt_rpc_queue_node_t* next;
-} kmt_rpc_queue_node_t;
-
-typedef struct thread_info_t {
-    // thread info
-    char name[16];
-    // thread objects
-    //page_alloc_ctx_t* palloca_ctx;
-    heap_allocator_t* heap;
-    x86_mmu_map_t     ptable;
-
-    // RPC
-    kmt_rpc_queue_node_t* rpc_head;
-    kmt_rpc_queue_node_t* rpc_tail;
-    err_t rpc_return;
-} thread_info_t;
-
 typedef struct kmt_queue_node_t {
     thread_uid_t thread_id;
     struct kmt_queue_node_t* next;
@@ -83,8 +52,9 @@ typedef struct kmt_sleep_request_t {
 
 bool kmt_is_initialized_value = false;
 struct {
-    // heap
+    // heaps
     heap_allocator_t* kalloca;
+    heap_allocator_t* rpc_alloca;
 
     // pools
     tcb_t tcb_pool[MAX_KERNEL_THREADS];
@@ -92,8 +62,8 @@ struct {
     usize thread_count;
     
     kmt_mutex_impl_t mutex_pool[KMT_MAX_MUTEXES];
-    kmt_mutex_impl_t* sch_mutex;
     usize alloc_mutex_count;
+
     // current state
     thread_uid_t current_thread;
     thread_uid_t idle_thread;
@@ -115,7 +85,7 @@ _import void _asmcall _kmt_setup_cf();
 
 // helper functions
 //void x86_intr_dtor(u32* eflags) { x86_restore_intr_saved(*eflags); }
-void kmt_disable_preemption() { g_kmt_ctx.flags &= ~KMT_PREEMPTION_ENABLED; }
+u32 kmt_disable_preemption() { u32 flags = g_kmt_ctx.flags; g_kmt_ctx.flags &= ~KMT_PREEMPTION_ENABLED; return flags; }
 void kmt_restore_flags(u32* flags) { 
     g_kmt_ctx.flags = *flags; 
 }
@@ -190,6 +160,13 @@ void kmt_schedule(u8 new_status) {
         return;
     }
     g_kmt_ctx.tcb_pool[next_thread_id].status = THREAD_STATUS_RUNNING;
+
+    /*
+    if(g_kmt_ctx.tcb_pool[current_thread_id].status == THREAD_STATUS_IDLE_RPC_CALLEE) {
+        //log_mmu_map(&g_kmt_ctx.threads[next_thread_id].pmgr_ctx.ptable);
+        //for(;;);
+    }
+    */
 
     kmt_switch_task(&g_kmt_ctx.tcb_pool[current_thread_id], &g_kmt_ctx.tcb_pool[next_thread_id], get_global_tss());
 }
@@ -292,12 +269,13 @@ void kmt_preemptive_intr_handler(registers_t* registers) {
 // api;
 bool kmt_is_initialized() { return kmt_is_initialized_value; }
 void initialize_multitasking(x86_mmu_map_t* handoff_ptable, heap_allocator_t* kalloca) {
-    g_kmt_ctx.kalloca = construct_heap(kalloca, __kmt_heap_start, PTR_DIFF_I32(__kmt_heap_end, __kmt_heap_start));
+    g_kmt_ctx.kalloca = initialize_heap(kalloca, __kmt_heap_start, PTR_DIFF_I32(__kmt_heap_end, __kmt_heap_start));
+    g_kmt_ctx.rpc_alloca = initialize_heap(g_kmt_ctx.kalloca, __kmt_rpc_heap_start, PTR_DIFF_I32(__kmt_rpc_heap_end, __kmt_rpc_heap_start));
     // add the boot thread as the first thread in the thread pool
     g_kmt_ctx.thread_count = 1;
     
     memcpy(g_kmt_ctx.threads[0].name, "kboot", sizeof("kboot"));
-    g_kmt_ctx.threads[0].ptable = *handoff_ptable;
+    g_kmt_ctx.threads[0].pmgr_ctx = construct_page_mgr_ctx(g_kmt_ctx.kalloca, *handoff_ptable);
     // the boot thread is not a real thread, it will never be switched into, so we don't need to worry about its heap
     g_kmt_ctx.threads[0].heap = nullptr;
     //g_kmt_ctx.threads[0].palloca_ctx = nullptr;
@@ -321,6 +299,8 @@ void initialize_multitasking(x86_mmu_map_t* handoff_ptable, heap_allocator_t* ka
         g_kmt_ctx.ready_queues[i].tail = nullptr;
     }
 
+    // initialize the mutex pool
+    g_kmt_ctx.alloc_mutex_count = 0;
     for(usize i = 0; i < KMT_MAX_MUTEXES; i++) {
         g_kmt_ctx.mutex_pool[i].flags = KMT_MUTEX_FREE;
         g_kmt_ctx.mutex_pool[i].owner = invalid_u16;
@@ -334,6 +314,7 @@ void initialize_multitasking(x86_mmu_map_t* handoff_ptable, heap_allocator_t* ka
         g_kmt_ctx.sleep_heap[i].thread_id = invalid_u16;
         g_kmt_ctx.sleep_heap[i].wakeup_time = 0;
     }
+
 
     g_kmt_ctx.idle_thread = invalid_u16;
     kmt_is_initialized_value = true;
@@ -355,40 +336,59 @@ thread_uid_t kmt_create_thread(const thread_desc_t *desc) {
     if(IS_ERR_PTR(desc->entry))                 return 0x8000 | EINVPTR;
     if(IS_ERR_PTR(desc->stack_top))             return 0x8000 | EINVPTR;
     if(IS_ERR_PTR(desc->interrupt_stack_top))   return 0x8000 | EINVPTR;
-    if(IS_ERR_PTR(desc->ptable.directory))      return 0x8000 | EINVPTR;
     if(IS_ERR_PTR(desc->heap_base))             return 0x8000 | EINVPTR;
 
     thread_uid_t new_thread_id = g_kmt_ctx.thread_count;
     
     memcpy(g_kmt_ctx.threads[new_thread_id].name, desc->name, strlen(desc->name) + 1);
-    g_kmt_ctx.threads[new_thread_id].ptable = desc->ptable;
-    g_kmt_ctx.threads[new_thread_id].heap = construct_heap(g_kmt_ctx.kalloca, desc->heap_base, desc->heap_size);
-    //g_kmt_ctx.threads[new_thread_id].palloca_ctx = construct_page_alloc_ctx(g_kmt_ctx.threads[new_thread_id].heap);
+    g_kmt_ctx.threads[new_thread_id].pmgr_ctx = desc->pmgr_ctx;
+    g_kmt_ctx.threads[new_thread_id].heap = initialize_heap(g_kmt_ctx.kalloca, desc->heap_base, desc->heap_size);
     g_kmt_ctx.threads[new_thread_id].rpc_head = nullptr;
     g_kmt_ctx.threads[new_thread_id].rpc_tail = nullptr;
-
     if(IS_ERR_PTR(g_kmt_ctx.threads[new_thread_id].heap)) {
         return 0x8000 | ERR_CAST(g_kmt_ctx.threads[new_thread_id].heap);
     }
 
+    // allocate a shared heap for RPC communication for this thread
+    void* rpc_buffer = malloc(g_kmt_ctx.rpc_alloca, KMT_MAX_RPC_BUFFER_SIZE);
+    if(IS_ERR_PTR(rpc_buffer)) {
+        destroy_heap(g_kmt_ctx.kalloca, g_kmt_ctx.threads[new_thread_id].heap);
+        return 0x8000 | ERR_CAST(rpc_buffer);
+    }
+    g_kmt_ctx.threads[new_thread_id].rpc_shared_heap = initialize_heap(g_kmt_ctx.kalloca, rpc_buffer, KMT_MAX_RPC_BUFFER_SIZE);
+    if(IS_ERR_PTR(g_kmt_ctx.threads[new_thread_id].rpc_shared_heap)) {
+        destroy_heap(g_kmt_ctx.kalloca, g_kmt_ctx.threads[new_thread_id].heap);
+        free(g_kmt_ctx.rpc_alloca, rpc_buffer);
+        return 0x8000 | ERR_CAST(g_kmt_ctx.threads[new_thread_id].rpc_shared_heap);
+    }
+
+    // push the correct values onto the new thread's stack so that when we switch to it, it will start executing at the entry point with a clean stack
+	u32* phys_stack_top = (u32*)x86_get_phys_addr(&desc->pmgr_ctx.ptable, (ptr_t)desc->stack_top);
+    if(IS_ERR_PTR(phys_stack_top)) {
+        destroy_heap(g_kmt_ctx.kalloca, g_kmt_ctx.threads[new_thread_id].heap);
+        free(g_kmt_ctx.rpc_alloca, g_kmt_ctx.threads[new_thread_id].rpc_shared_heap);
+        return 0x8000 | ERR_CAST(phys_stack_top);
+    }
+
+    u32* phys_stack_esp = phys_stack_top;
+	*phys_stack_esp = 0xDEADBEEF;            phys_stack_esp--; // stack canary
+    *phys_stack_esp = (u32)desc->entry;      phys_stack_esp--; // the thread entry point
+	*phys_stack_esp = (u32)kmt_thread_start; phys_stack_esp--; // the thread start function
+    *phys_stack_esp = (u32)_kmt_setup_cf;    phys_stack_esp--; // the thread setup function
+	*phys_stack_esp = 0; 			         phys_stack_esp--; // ebx is 0(for entry point)
+	*phys_stack_esp = 0; 			         phys_stack_esp--; // esi is 0(for entry point)
+	*phys_stack_esp = 0; 			         phys_stack_esp--; // edi is 0(for entry point)
+	*phys_stack_esp = (u32)desc->stack_top; // ebp is the stack top (for entry point)
+
+    u32* virt_stack_esp = (u32*)(((ptr_t)desc->stack_top) + PTR_DIFF_I32(phys_stack_esp, phys_stack_top));
+
     // the thread will be valid after this point, so we can increment the thread count
     g_kmt_ctx.thread_count++;
 
-    // push the correct values onto the new thread's stack so that when we switch to it, it will start executing at the entry point with a clean stack
-	u32* stack_esp = desc->stack_top;
-	*stack_esp = 0xDEADBEEF;            stack_esp--; // stack canary
-    *stack_esp = (u32)desc->entry;      stack_esp--; // the thread entry point
-	*stack_esp = (u32)kmt_thread_start; stack_esp--; // the thread start function
-    *stack_esp = (u32)_kmt_setup_cf;    stack_esp--; // the thread setup function
-	*stack_esp = 0; 			        stack_esp--; // ebx is 0(for entry point)
-	*stack_esp = 0; 			        stack_esp--; // esi is 0(for entry point)
-	*stack_esp = 0; 			        stack_esp--; // edi is 0(for entry point)
-	*stack_esp = (u32)desc->stack_top; // ebp is the stack top (for entry point)
-
     g_kmt_ctx.tcb_pool[new_thread_id] = (tcb_t){
-        .esp = stack_esp,
+        .esp = virt_stack_esp,
         .esp0 = desc->interrupt_stack_top,
-        .cr3 = x86_get_ctx_map(&desc->ptable),
+        .cr3 = x86_get_ctx_map(&desc->pmgr_ctx.ptable),
         .status = THREAD_STATUS_IDLE,
         .priority = desc->priority,
         .base_priority = desc->priority,
@@ -403,7 +403,7 @@ void kmt_spawn_idle_thread(thread_entry_point_t entry, x86_mmu_map_t ptable) {
 
     g_kmt_ctx.idle_thread = kmt_create_thread(&(thread_desc_t){
 		.name = "kidle",
-		.ptable = ptable,
+		.pmgr_ctx = construct_page_mgr_ctx(g_kmt_ctx.kalloca, ptable),
 		.stack_top = __idle_thread_exec_stack_end - 4,
 		.interrupt_stack_top = __idle_thread_intr_stack_end - 4,
 		.entry = entry,
@@ -593,6 +593,12 @@ err_t kmt_free_mutex(thread_mutex_t mutex) {
 }
 
 // RPC
+heap_allocator_t* kmt_get_rpc_heap() {
+    STOP_PREEMPTING();
+    void* heap = g_kmt_ctx.threads[g_kmt_ctx.current_thread].rpc_shared_heap;
+    return heap;
+}
+
 err_t kmt_rpc_call(thread_uid_t callee, u32 function, void* request, usize request_size, void* response, usize response_size, err_t* return_code) {
     STOP_PREEMPTING();
 
@@ -709,6 +715,11 @@ heap_allocator_t* kmt_get_heap() {
     return g_kmt_ctx.threads[thread_id].heap;
 }
 
+thread_info_t* kmt_get_thread_info(thread_uid_t thread_id) {
+    if(thread_id >= g_kmt_ctx.thread_count) return ERR_PTR(thread_info_t, EOUTOFRANGE);
+    return &g_kmt_ctx.threads[thread_id];
+}
+
 u8   kmt_get_thread_priority(thread_uid_t thread_id) {
     if(thread_id >= g_kmt_ctx.thread_count) return invalid_u8;
     return g_kmt_ctx.tcb_pool[thread_id].priority;
@@ -719,4 +730,9 @@ err_t kmt_override_thread_priority(thread_uid_t thread_id, u8 priority) {
     return ESUCCESS;
 }
 
-
+// get physical address of a virtual address in the current thread's page table
+ptr_t kmt_get_phys_addr(ptr_t vaddress) {
+    thread_uid_t thread_id = g_kmt_ctx.current_thread;
+    if(thread_id >= g_kmt_ctx.thread_count) return EOUTOFRANGE;
+    return x86_get_phys_addr(&g_kmt_ctx.threads[thread_id].pmgr_ctx.ptable, vaddress);
+}

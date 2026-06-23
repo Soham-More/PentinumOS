@@ -1,9 +1,8 @@
 #include "pagemgr.h"
 
-#include "priv.h"
-#include "buddy.h"
-
 #include <panic/panic.h>
+
+page_alloc_info_t g_tmp_info;
 
 // allocate page_cnt pages(may allocate more)
 page_alloc_info_t* allocate_pages(page_mgr_ctx_t* ctx, usize page_cnt) {
@@ -17,6 +16,14 @@ page_alloc_info_t* allocate_pages(page_mgr_ctx_t* ctx, usize page_cnt) {
     }
 
     pnode_set_status(node, PNODE_USED, false, false);
+
+    // if heap is null, we just allocate the pages without tracking them in the page manager context
+    if(!ctx->heap_allocator) {
+        g_tmp_info.memory = (void*)(node->address * X86_PAGE_SIZE);
+        g_tmp_info.count = 1 << node->order;
+        g_tmp_info.next = nullptr;
+        return &g_tmp_info;
+    }
 
     if(ctx->alloc_pages_head) {
         ctx->alloc_pages_tail->next = malloc(ctx->heap_allocator, sizeof(page_alloc_info_t));
@@ -102,11 +109,12 @@ err_t free_pages(const page_alloc_info_t* page_info) {
 }
 
 // construct a page allocator context using the heap allocator
-page_mgr_ctx_t construct_page_mgr_ctx(heap_allocator_t* heap_allocator) {
+page_mgr_ctx_t construct_page_mgr_ctx(heap_allocator_t* heap_allocator, x86_mmu_map_t ptable) {
     page_mgr_ctx_t ctx = {
         .heap_allocator = heap_allocator,
         .alloc_pages_head = nullptr,
         .alloc_pages_tail = nullptr,
+        .ptable = ptable,
         .page_count = 0,
         .ram_page_count = 0,
     };
@@ -118,12 +126,20 @@ page_mgr_ctx_t construct_page_mgr_ctx(heap_allocator_t* heap_allocator) {
 err_t pmgr_alloc_pages(page_mgr_ctx_t* ctx, ptr_t vaddress, usize page_cnt, u32 flags) {
     if(!ctx) return EINVAL;
     if(page_cnt == 0) return ESUCCESS;
-
+    
     page_alloc_info_t* pages = allocate_pages(ctx, page_cnt);
     if(IS_ERR_PTR(pages)) return ERR_CAST(pages);
-
+    
+    // if vaddress is 0
+    // identity map the allocated pages to the physical address
+    // if not already mapped
+    if(vaddress == 0) {
+        vaddress = (ptr_t)pages->memory;
+    }
     // map the allocated pages to the virtual address
 
+    // TODO: this code leaks memory if mapping fails, we should free the allocated pages
+    // also leaks if remapping the same virtual address with different physical pages
     void* mapping_pages = nullptr;
     usize req_page_cnt = x86_map_pages_get_page_count(&ctx->ptable, vaddress, page_cnt);
     // need to allocate pages for page tables
@@ -133,6 +149,7 @@ err_t pmgr_alloc_pages(page_mgr_ctx_t* ctx, ptr_t vaddress, usize page_cnt, u32 
         mapping_pages = mapping_pages_info->memory;
     }
     err_t err = x86_map_pages(&ctx->ptable, vaddress, (ptr_t)pages->memory, page_cnt, flags, mapping_pages, req_page_cnt);
+    // TODO: if mapping fails, we should free the allocated pages
     if(err != ESUCCESS) return err;
 
     return ESUCCESS;
@@ -171,4 +188,3 @@ err_t destroy_page_mgr_ctx(page_mgr_ctx_t* ctx) {
     }
     return ESUCCESS;
 }
-
