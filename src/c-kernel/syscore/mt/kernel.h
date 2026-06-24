@@ -10,6 +10,8 @@
 
 typedef void(*thread_entry_point_t)();
 
+typedef struct kmt_queue_node_t kmt_queue_node_t;
+
 typedef struct thread_desc_t {
     char* name;
     page_mgr_ctx_t pmgr_ctx;
@@ -51,6 +53,9 @@ typedef struct thread_info_t {
     kmt_rpc_queue_node_t* rpc_tail;
     err_t rpc_return;
     heap_allocator_t* rpc_shared_heap;
+
+    // rwlock
+    kmt_queue_node_t* owned_rwlocks;
 } thread_info_t;
 
 #define STOP_PREEMPTING() u32 _kmt_flags __attribute__((cleanup(kmt_restore_flags))) = kmt_disable_preemption();

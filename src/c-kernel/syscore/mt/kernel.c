@@ -39,11 +39,18 @@ typedef struct kmt_queue_t {
 } kmt_queue_t;
 
 typedef struct kmt_mutex_impl_t {
-    u16           flags;
+    u16          flags;
     thread_uid_t owner;
     kmt_queue_node_t* waiting_queue_head;
     kmt_queue_node_t* waiting_queue_tail;
 } kmt_mutex_impl_t;
+
+typedef struct kmt_rwlock_impl_t {
+    u16          flags;
+    thread_uid_t owner;
+    kmt_queue_node_t* waiting_queue_head;
+    kmt_queue_node_t* waiting_queue_tail;
+} kmt_rwlock_impl_t;
 
 typedef struct kmt_sleep_request_t {
     thread_uid_t thread_id;
@@ -591,6 +598,13 @@ err_t kmt_free_mutex(thread_mutex_t mutex) {
 
     return ESUCCESS;
 }
+
+// rwlocks
+thread_rwlock_t kmt_create_rwlock();
+err_t kmt_rwlock_read_lock(thread_rwlock_t rwlock);
+err_t kmt_rwlock_write_lock(thread_rwlock_t rwlock);
+err_t kmt_rwlock_unlock(thread_rwlock_t rwlock);
+err_t kmt_free_rwlock(thread_rwlock_t rwlock);
 
 // RPC
 heap_allocator_t* kmt_get_rpc_heap() {

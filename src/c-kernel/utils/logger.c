@@ -6,6 +6,8 @@
 static tty_t* g_logging_tty = nullptr;
 
 void sys_logf(u8 severity, const char* fmt, ...) {
+    // if the logging tty is not set, we will just return
+    if(!g_logging_tty) return;
     va_list vlist;
     va_start(vlist, fmt);
 
@@ -71,4 +73,8 @@ tty_t* logging_lock() {
 }
 void logging_unlock(tty_t** tty) {
     tty_unlock(tty);
+}
+
+bool logging_is_initialized() {
+    return g_logging_tty != nullptr;
 }

@@ -27,3 +27,4 @@ void logging_unlock(tty_t** tty);
 #define log_critical(...)  sys_logf(Severity_Critical, __VA_ARGS__)
 
 void logging_set_tty(tty_t* tty);
+bool logging_is_initialized();

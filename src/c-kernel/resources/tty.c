@@ -88,8 +88,8 @@ void tty_clear(tty_t* tty) {
     tty->console->clear(tty->console);
 }
 void tty_flush(tty_t* tty) {
-    if(tty->flags & TTY_NO_BUFFERING) return;
     TTY_AQUIRE_SCOPED_LOCK(tty);
+    if(tty->flags & TTY_NO_BUFFERING) return;
     tty->console->write(tty->console, tty->buffer, tty->buffer_pos);
     tty->buffer_pos = 0;
 }

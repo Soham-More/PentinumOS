@@ -17,6 +17,7 @@
 // types
 typedef u16 thread_uid_t;
 typedef u16 thread_mutex_t;
+typedef u16 thread_rwlock_t;
 typedef u16 thread_rpc_t;
 typedef void(*thread_entry_point_t)();
 
@@ -59,6 +60,13 @@ bool kmt_is_mutex_owned(thread_mutex_t mutex);
 
 err_t kmt_free_mutex(thread_mutex_t mutex);
 
+// rwlocks
+thread_rwlock_t kmt_create_rwlock();
+err_t kmt_rwlock_read_lock(thread_rwlock_t rwlock);
+err_t kmt_rwlock_write_lock(thread_rwlock_t rwlock);
+err_t kmt_rwlock_unlock(thread_rwlock_t rwlock);
+err_t kmt_free_rwlock(thread_rwlock_t rwlock);
+
 // ipc-related functions will go here
 
 // get the heap allocator for RPC communication
@@ -75,7 +83,6 @@ err_t kmt_rpc_call(thread_uid_t callee, u32 function, void* request, usize reque
 thread_rpc_desc_t kmt_rpc_listen();
 // return a response to an RPC call
 err_t kmt_rpc_return(const thread_rpc_desc_t* desc, err_t return_code);
-
 
 // thread info
 thread_uid_t kmt_get_current_thread();

@@ -1,6 +1,7 @@
 #include "IRQ.h"
 #include "PIC.h"
 #include "../x86.h"
+#include <utils/logger.h>
 //#include <io/io.h>
 
 IRQHandler irq_handlers[16];
@@ -18,7 +19,7 @@ void _no_stack_trace _default_irq_handler(registers_t* registers)
     }
     else
     {
-        //log_warn("Unhandled IRQ Caught: IRQ #%d (ISR = %x, IRR = %x)\n", irq, pic_isr, pic_irr);
+        log_warn("Unhandled IRQ Caught: IRQ #{i} (ISR = {h}, IRR = {h})\n", irq, pic_isr, pic_irr);
     }
 
     PIC_EOI(irq);

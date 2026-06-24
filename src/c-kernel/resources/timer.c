@@ -45,7 +45,12 @@ void initialize_timer() {
 }
 
 time_ns_t timer_time_since_init_ns() {
-    return (g_timer_ctx.ticks_since_init * (1000 * 1000 * 1000)) / g_timer_ctx.frequency_hz;
+    u64 ticks = g_timer_ctx.ticks_since_init;
+    u64 ticks_quotient = ticks / g_timer_ctx.frequency_hz;
+    u64 ticks_remainder = ticks % g_timer_ctx.frequency_hz;
+
+    // avoids overflow by calculating the remainder first, then dividing by the frequency
+    return (ticks_quotient * (1000 * 1000 * 1000)) + ((ticks_remainder * (1000 * 1000 * 1000)) / g_timer_ctx.frequency_hz);
 }
 void timer_setup_callback(u32 frequency_hz, x86_interrupt_handler_t callback) {
     g_timer_ctx.callback_frequency_hz = frequency_hz;

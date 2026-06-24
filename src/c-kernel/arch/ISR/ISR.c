@@ -3,8 +3,9 @@
 #include <utils/logger.h>
 #include "isr_gen.h"
 #include "../IDT/IDT.h"
+#include <panic/tty.h>
 
-#define _PRINT_REGISTER(x) //log_info("\t%3s: 0x%8x", #x, registers->x)
+#define _PRINT_REGISTER(x) tty_panic_printf("\t{6s%>}: {12h}", #x, registers->x)
 
 static ISRHandler isrHandlers[256];
 
@@ -45,28 +46,27 @@ static const char* const _ISR_Exceptions[] = {
 
 void _no_stack_trace i686_dump_registers(registers_t* registers)
 {
-    /*
-    log_info("Registers: \n");
+
+    tty_panic_printf("Registers: \n");
     _PRINT_REGISTER(eax);
     _PRINT_REGISTER(ebx);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(ecx);
     _PRINT_REGISTER(edx);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(edi);
     _PRINT_REGISTER(esi);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(ebp);
     _PRINT_REGISTER(ebx);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(eip);
     _PRINT_REGISTER(cs);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(ss);
     _PRINT_REGISTER(esp);
-    printf("\n");
+    tty_panic_printf("\n");
     _PRINT_REGISTER(eflags);
-    */
 }
 
 _export void _asmcall _no_stack_trace _default_isr_handler(registers_t* registers)
@@ -77,23 +77,31 @@ _export void _asmcall _no_stack_trace _default_isr_handler(registers_t* register
     }
     else if(registers->interrupt < 32)
     {
-        //log_critical("\nKERNEL PANIC: Unhandled Interrupt %u: %s\n\t CPU Error Code: %u\n", registers->interrupt, _ISR_Exceptions[registers->interrupt], registers->error);
+        x86_disable_interrupts();
+
+        tty_panic_printf("\nKERNEL PANIC: Unhandled Interrupt {u}: {s}\n\t CPU Error Code: {u}\n", registers->interrupt, _ISR_Exceptions[registers->interrupt], registers->error);
 
         i686_dump_registers(registers);
 
-        //printf("\n");
+        tty_panic_printf("\n");
 
         //cpu::printStackTrace();
 
-        __asm__("hlt");
+        for(;;) __asm__("hlt");
     }
     else
     {
-        //log_critical("\nKERNEL PANIC: Unhandled Interrupt %u\n\t CPU Error Code: %u\n", registers->interrupt, registers->error);
+        x86_disable_interrupts();
+
+        tty_panic_printf("\nKERNEL PANIC: Unhandled Interrupt {u}\n\t CPU Error Code: {u}\n", registers->interrupt, registers->error);
 
         i686_dump_registers(registers);
 
-        __asm__("hlt");
+        tty_panic_printf("\n");
+
+        //cpu::printStackTrace();
+
+        for(;;) __asm__("hlt");
     }
 }
 
