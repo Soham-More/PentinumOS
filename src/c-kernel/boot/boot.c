@@ -51,11 +51,11 @@ _export void start(KernelInfo kernelInfo)
 	heap_allocator_t* kalloca = nullptr;
 	usize heap_obj_size = get_heap_allocator_bytesize();
 	if(heap_obj_size > sizeof(g_kalloc_buffer)) {
-		panic(PANIC_UNEXPECTED_FAILURE, "Heap allocator object size is larger than the provided global allocator memory");
+		kpanic(PANIC_UNEXPECTED_FAILURE, "Heap allocator object size is larger than the provided global allocator memory");
 		return;
 	}
 	kalloca = construct_heap(g_kalloc_buffer, __root_heap_start, PTR_DIFF_I32(__root_heap_end, __root_heap_start));
-	panic_on_err_ptr(kalloca, "Failed to construct heap");
+	kpanic_on_err_ptr(kalloca, "Failed to construct heap");
 	log_info("idle thread heap... ok\n");
 
 	// setup paging
@@ -64,7 +64,7 @@ _export void start(KernelInfo kernelInfo)
 	log_info("x86 paging... ok\n");
 
 	// setup buddy allocator
-	panic_on_err(initialize_buddy_allocator(kalloca, &kernelInfo), "Failed to initialize buddy allocator");
+	kpanic_on_err(initialize_buddy_allocator(kalloca, &kernelInfo), "Failed to initialize buddy allocator");
 	log_info("buddy allocator... ok\n");
 
 	// initialize timer for multitasking preemption
@@ -93,7 +93,7 @@ _export void start(KernelInfo kernelInfo)
 heap_allocator_t* m_aquire_global_allocator() {
 	err_t err = kmt_lock_mutex(g_shared_object_mutex);
 	if(err != ESUCCESS) {
-		panic(PANIC_UNEXPECTED_FAILURE, "Failed to acquire global allocator lock");
+		kpanic(PANIC_UNEXPECTED_FAILURE, "Failed to acquire global allocator lock");
 		return nullptr;
 	}
 	return g_shared_object_allocator;
@@ -101,7 +101,7 @@ heap_allocator_t* m_aquire_global_allocator() {
 void m_release_global_allocator(heap_allocator_t** allocator) {
 	err_t err = kmt_unlock_mutex(g_shared_object_mutex);
 	if(err != ESUCCESS) {
-		panic(PANIC_UNEXPECTED_FAILURE, "Failed to release global allocator lock");
+		kpanic(PANIC_UNEXPECTED_FAILURE, "Failed to release global allocator lock");
 	}
 }
 

@@ -11,3 +11,5 @@ err_t syscore_echo_test(const char* test);
 err_t syscore_alloc_pages(usize num_pages, ptr_t vaddress);
 // allocate MMIO pages
 err_t syscore_alloc_mmio_pages(usize num_pages, ptr_t vaddress, u32 page_flags);
+// start a new thread
+//err_t syscore_spawn_thread(char* name, thread_entry_point_t entry_point, u8 priority);

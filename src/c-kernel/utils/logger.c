@@ -65,3 +65,10 @@ void logging_set_tty(tty_t* tty) {
         g_logging_tty = tty;
     }
 }
+
+tty_t* logging_lock() {
+    return tty_lock(g_logging_tty);
+}
+void logging_unlock(tty_t** tty) {
+    tty_unlock(tty);
+}

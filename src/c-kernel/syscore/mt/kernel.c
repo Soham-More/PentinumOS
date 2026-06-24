@@ -134,14 +134,14 @@ void kmt_schedule(u8 new_status) {
             g_kmt_ctx.tcb_pool[g_kmt_ctx.current_thread].age = 0;
             g_kmt_ctx.tcb_pool[g_kmt_ctx.current_thread].priority = g_kmt_ctx.tcb_pool[g_kmt_ctx.current_thread].base_priority;
 
-            panic_on_err(kmt_wakeup_thread(g_kmt_ctx.current_thread), "Failed to wakeup thread to reschedule");
+            kpanic_on_err(kmt_wakeup_thread(g_kmt_ctx.current_thread), "Failed to wakeup thread to reschedule");
         } else {
             g_kmt_ctx.tcb_pool[g_kmt_ctx.current_thread].status = new_status;
         }
     }
 
     // get the next thread from the ready queue
-    panic_if(g_kmt_ctx.ready_priority_bitmap == 0, PANIC_UNEXPECTED_FAILURE, "bitmap is zero!");
+    kpanic_if(g_kmt_ctx.ready_priority_bitmap == 0, PANIC_UNEXPECTED_FAILURE, "bitmap is zero!");
 
     u32 max_priority = 31 - __builtin_clz(g_kmt_ctx.ready_priority_bitmap);
     thread_uid_t next_thread_id = kmt_queue_pop(&g_kmt_ctx.ready_queues[max_priority]);
@@ -152,7 +152,7 @@ void kmt_schedule(u8 new_status) {
     u32 current_thread_id = g_kmt_ctx.current_thread;
     g_kmt_ctx.current_thread = next_thread_id;
     if(g_kmt_ctx.tcb_pool[next_thread_id].status != THREAD_STATUS_READY) {
-        panic(
+        kpanic(
             PANIC_UNEXPECTED_FAILURE, 
             "thread in ready queue is not ready. thread id: {u}, thread status: {x}\n", 
             next_thread_id, g_kmt_ctx.tcb_pool[next_thread_id].status
@@ -228,7 +228,7 @@ void kmt_preemptive_intr_handler(registers_t* registers) {
         kmt_pop_sleep_heap();
         // downgrade the thread's status to idle, and wake it up
         g_kmt_ctx.tcb_pool[thread_id].status = THREAD_STATUS_IDLE;
-        panic_on_err(kmt_wakeup_thread(thread_id), "Failed to wakeup thread from sleep heap");
+        kpanic_on_err(kmt_wakeup_thread(thread_id), "Failed to wakeup thread from sleep heap");
     }
 
     // age all the threads in the ready queue, except the no priority threads (priority 0), and promote them if they have aged enough
@@ -252,7 +252,7 @@ void kmt_preemptive_intr_handler(registers_t* registers) {
                     g_kmt_ctx.ready_queues[priority].head = node->next;
                 }
                 g_kmt_ctx.tcb_pool[node->thread_id].status = THREAD_STATUS_IDLE;
-                panic_on_err(kmt_wakeup_thread(node->thread_id), "Failed to raise thread priority from ready queue");
+                kpanic_on_err(kmt_wakeup_thread(node->thread_id), "Failed to raise thread priority from ready queue");
                 // we just removed the current node from the list
                 node = prev_node;
             }
@@ -412,7 +412,7 @@ void kmt_spawn_idle_thread(thread_entry_point_t entry, x86_mmu_map_t ptable) {
 		.priority = 1,
 		.policy = KMT_POLICY_ROUND_ROBIN,
 	});
-    panic_if(KMT_IS_INVALID_UID(g_kmt_ctx.idle_thread), KMT_GET_ERR_UID(g_kmt_ctx.idle_thread), "Failed to create idle thread");
+    kpanic_if(KMT_IS_INVALID_UID(g_kmt_ctx.idle_thread), KMT_GET_ERR_UID(g_kmt_ctx.idle_thread), "Failed to create idle thread");
 
     // wakeup the idle thread
     kmt_wakeup_thread(g_kmt_ctx.idle_thread);
@@ -454,7 +454,7 @@ void kmt_sleep_until(time_us_t wakeup_time_us) {
 
     // add the current thread to the sleep min heap
     if(g_kmt_ctx.sleep_heap_size >= MAX_KERNEL_THREADS) {
-        panic(PANIC_OBJ_POOL_FULL, "object pool full");
+        kpanic(PANIC_OBJ_POOL_FULL, "object pool full");
         return;
     }
 
@@ -563,7 +563,7 @@ err_t kmt_unlock_mutex(thread_mutex_t mutex) {
         mutex_impl->owner = next_thread_node->thread_id;
         // downgrade the thread's status to idle, and wake it up
         g_kmt_ctx.tcb_pool[next_thread_node->thread_id].status = THREAD_STATUS_IDLE;
-        panic_on_err(kmt_wakeup_thread(next_thread_node->thread_id), "Failed to wakeup thread from mutex waiting queue");
+        kpanic_on_err(kmt_wakeup_thread(next_thread_node->thread_id), "Failed to wakeup thread from mutex waiting queue");
         free(g_kmt_ctx.kalloca, next_thread_node);
     } else {
         mutex_impl->owner = invalid_u16;
@@ -630,9 +630,9 @@ err_t kmt_rpc_call(thread_uid_t callee, u32 function, void* request, usize reque
         // the callee's RPC queue is empty, we will wake it up if it's idle
         if(g_kmt_ctx.tcb_pool[callee].status == THREAD_STATUS_IDLE_RPC_CALLEE) {
             g_kmt_ctx.tcb_pool[callee].status = THREAD_STATUS_IDLE;
-            panic_on_err(kmt_wakeup_thread(callee), "Failed to wakeup thread from idle RPC");
+            kpanic_on_err(kmt_wakeup_thread(callee), "Failed to wakeup thread from idle RPC");
         } else if(g_kmt_ctx.tcb_pool[callee].status == THREAD_STATUS_TERMINATED) {
-            panic(
+            kpanic(
                 PANIC_UNEXPECTED_FAILURE, 
                 "Callee thread has been terminated. thread id: {u}, thread status: {x}\n", 
                 callee, g_kmt_ctx.tcb_pool[callee].status
@@ -656,7 +656,7 @@ thread_rpc_desc_t kmt_rpc_listen() {
         // no RPC requests, we will just sleep until we get one
         kmt_schedule(THREAD_STATUS_IDLE_RPC_CALLEE);
         rpc_node = g_kmt_ctx.threads[g_kmt_ctx.current_thread].rpc_head;
-        panic_if(IS_ERR_PTR(rpc_node), PANIC_UNEXPECTED_FAILURE, "RPC queue is empty after waking up from idle RPC");
+        kpanic_if(IS_ERR_PTR(rpc_node), PANIC_UNEXPECTED_FAILURE, "RPC queue is empty after waking up from idle RPC");
     }
 
     // remove the RPC request from the queue
@@ -684,12 +684,12 @@ err_t kmt_rpc_return(const thread_rpc_desc_t* desc, err_t return_code) {
     g_kmt_ctx.threads[desc->caller].rpc_return = return_code;
 
     // assuming the buffers have been filled by the callee, we will wake up the caller
-    panic_if(
+    kpanic_if(
         g_kmt_ctx.tcb_pool[desc->caller].status != THREAD_STATUS_IDLE_RPC_CALLER, 
         PANIC_UNEXPECTED_FAILURE, "Caller thread is not in idle RPC caller state"
     );
     g_kmt_ctx.tcb_pool[desc->caller].status = THREAD_STATUS_IDLE;
-    panic_on_err(kmt_wakeup_thread(desc->caller), "Failed to wakeup thread from RPC return");
+    kpanic_on_err(kmt_wakeup_thread(desc->caller), "Failed to wakeup thread from RPC return");
     return ESUCCESS;
 }
 

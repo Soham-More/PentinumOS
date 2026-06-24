@@ -15,7 +15,7 @@ void idle_thread_entry() {
     log_info("idle thread started successfully\n");
     log_info("handoff to syscore thread\n");
     // create the syscore thread, which will be used to manage the memory
-    panic_on_err(syscore_start_thread(g_idle_thread_init.page_table), "Failed to start syscore thread");
+    kpanic_on_err(syscore_start_thread(g_idle_thread_init.page_table), "Failed to start syscore thread");
 
     /*
     for(usize i = 0; i < 4; i++) {

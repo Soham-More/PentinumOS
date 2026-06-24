@@ -55,7 +55,7 @@ tty_t* construct_tty(const char* name, console_t* console, usize buffer_size, u3
 tty_t* get_tty(const char* name) {
     tty_t* tty = g_tty_head;
     while(tty != nullptr) {
-        if(strcmp(tty->name, name, sizeof(tty->name))) return tty;
+        if(strcmp(tty->name, name, strlen(tty->name))) return tty;
         tty = tty->next;
     }
     return nullptr;
@@ -99,6 +99,7 @@ void gp_putc(void* ctx, char ch) {
         // if we are in a panic state, we want to bypass the tty buffer and write directly to the console
         // we also want to write as safe as possible
         console_t* con = con_get_safe();
+        con->text_color = CON_COLOR_RED;
         con->write(con, &ch, 1);
         return;
     }

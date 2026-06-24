@@ -88,7 +88,7 @@ err_t free_pages(const page_alloc_info_t* page_info) {
     }
 
     if(BA_STATUS(node->flags) != PNODE_USED) {
-        panic(
+        kpanic(
             PANIC_BAD_MEMORY_REQUEST, 
             "invalid page free request. target node: {p}, target mapping: {x}\n", 
             node, BA_MAPPING(node->flags)

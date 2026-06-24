@@ -41,6 +41,7 @@
 #define EOUTOFRANGE (EMISC | 0x2)    // the given idx is out of range
 #define ETIMEOUT    (EMISC | 0x3)    // operation timed out
 #define EUNKNOWNREQ (EMISC | 0x4)    // unknown request/function (Ex. unknown RPC function)
+#define EUNSUPPORTED (EMISC | 0x5)   // unsupported operation
 
 #define ENOTERROR   ERR_CAST(0x70000000) // error code that does not indicate an error
 #define EPENDING   (ENOTERROR | 0x0)    // no return (yet), pending operation

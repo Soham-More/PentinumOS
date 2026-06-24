@@ -6,6 +6,7 @@
 
 #include "mt/kernel.h"
 #include "threads.h"
+#include "entry_points.h"
 
 #define SYSCORE_FUNC_ECHO 0x0
 #define SYSCORE_FUNC_ALLOC_PAGES 0x1
@@ -70,28 +71,16 @@ err_t syscore_spawn_thread(char* name, thread_entry_point_t entry_point, u8 prio
     return ESUCCESS;
 }
 
-void test(){
-    log_info("syscore test function run!\n");
+void test() {
+    log_info("test thread started successfully\n");
 
-    // get some pages from the syscore page manager context
-    panic_on_err(syscore_alloc_pages(4, 0x08000000), "Failed to allocate pages from syscore page manager context");
+    // sleep for 100 ms
+    kmt_sleep_for(100000);
 
-    // test read/write to the allocated pages
-    u32* test_page = (u32*)0x08000000;
-    for(u32 i = 0; i < 1024; i++) {
-        test_page[i] = i;
-    }
-    for(u32 i = 0; i < 1024; i++) {
-        if(test_page[i] != i) {
-            panic(PANIC_ASSERTION_FAILED, "syscore test failed: test_page[{u32}] = {u32}, expected {u32}", i, test_page[i], i); 
-        }
-    }
-
-    log_debug("rw syscore test passed!\n");
-
-    for(;;);
+    log_info("test still running!\n");
 }
 
+void init_thread_panic(tty_t* tty);
 void syscore_thread_entry() {
     {
         log_info("syscore thread started successfully\n");
@@ -102,26 +91,35 @@ void syscore_thread_entry() {
             syscore_pmgr_ctx = &syscore_thread->pmgr_ctx;
     
             thread_uid_t idle_id = kmt_get_thread("kidle");
-            panic_if(KMT_IS_INVALID_UID(idle_id), KMT_GET_ERR_UID(idle_id), "Failed to get idle thread");
+            kpanic_if(KMT_IS_INVALID_UID(idle_id), KMT_GET_ERR_UID(idle_id), "Failed to get idle thread");
             err_t err = kmt_override_thread_priority(idle_id, 0);
-            panic_on_err(err, "Failed to override idle thread priority");
+            kpanic_on_err(err, "Failed to override idle thread priority");
         }
         log_info("syscore handoff completed\n");
         
         usize heap_size_pages = 4;
         page_alloc_info_t* heapinfo = allocate_pages(syscore_pmgr_ctx, heap_size_pages);
-        panic_on_err_ptr(heapinfo, "Failed to allocate heap for syscore thread");
+        kpanic_on_err_ptr(heapinfo, "Failed to allocate heap for syscore thread");
     
         ptable_heap = initialize_heap(kmt_get_heap(), heapinfo->memory, heap_size_pages * X86_PAGE_SIZE);
         syscore_pmgr_ctx->heap_allocator = ptable_heap;
     
         log_info("setting up page manager... done\n");
+
+        // setup the thread panic handler
+        tty_t* panic_tty = get_tty("tty1");
+        kpanic_if(panic_tty == nullptr, EUNEXP, "Failed to get tty1 for thread panic handler");
+        init_thread_panic(panic_tty);
         
         // this must be last
         template_ptable = make_template_page_table();
         log_info("building template page table... done\n");
     }
 
+    // spawn the pcihub thread
+    syscore_spawn_thread("pcihub", pcihub_thread_entry, 5);
+
+    // spawn the test thread
     syscore_spawn_thread("test", test, 2);
 
     // setup some test rpc
@@ -134,27 +132,27 @@ void syscore_thread_entry() {
 
             if(rpc.request_size != rpc.response_size) {
                 log_info("request size {usize} does not match response size {usize}, returning error code\n", rpc.request_size, rpc.response_size);
-                panic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
+                kpanic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
                 continue;
             }
             if(IS_ERR_PTR(rpc.request) || IS_ERR_PTR(rpc.response)) {
                 log_info("request/response buffer is/are invalid, returning error code\n");
-                panic_on_err(kmt_rpc_return(&rpc, EINVPTR), "Failed to return rpc response");
+                kpanic_on_err(kmt_rpc_return(&rpc, EINVPTR), "Failed to return rpc response");
                 continue;
             }
 
             memcpy(rpc.response, rpc.request, rpc.request_size);
 
-            panic_on_err(kmt_rpc_return(&rpc, ESUCCESS), "Failed to return rpc response");
+            kpanic_on_err(kmt_rpc_return(&rpc, ESUCCESS), "Failed to return rpc response");
         } else if(rpc.function == SYSCORE_FUNC_ALLOC_PAGES) {
             if(rpc.request_size != sizeof(page_alloc_request_t)) {
                 log_info("invalid page alloc request size {usize}, returning error code\n", rpc.request_size);
-                panic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
+                kpanic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
                 continue;
             }
             if(IS_ERR_PTR(rpc.request)) {
                 log_info("request buffer is invalid, returning error code\n");
-                panic_on_err(kmt_rpc_return(&rpc, EINVPTR), "Failed to return rpc response");
+                kpanic_on_err(kmt_rpc_return(&rpc, EINVPTR), "Failed to return rpc response");
                 continue;
             }
 
@@ -175,13 +173,13 @@ void syscore_thread_entry() {
                 err = pmgr_alloc_pages(&caller->pmgr_ctx, request->vaddress, request->num_pages, X86_PAGE_PRESENT | request->page_flags);
             } else {
                 log_info("invalid page alloc flags {x}, returning error code\n", request->flags);
-                panic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
+                kpanic_on_err(kmt_rpc_return(&rpc, EINVAL), "Failed to return rpc response");
                     continue;
             }
-            panic_on_err(kmt_rpc_return(&rpc, err), "Failed to return rpc response");
+            kpanic_on_err(kmt_rpc_return(&rpc, err), "Failed to return rpc response");
         } else {
             log_info("unknown rpc function {u32}, returning error code\n", rpc.function);
-            panic_on_err(kmt_rpc_return(&rpc, EUNKNOWNREQ), "Failed to return rpc response");
+            kpanic_on_err(kmt_rpc_return(&rpc, EUNKNOWNREQ), "Failed to return rpc response");
         }
     }
 }

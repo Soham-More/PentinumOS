@@ -14,6 +14,12 @@ enum log_severity_t
 
 void sys_logf(u8 severity, const char* fmt, ...);
 
+// lock and unlock the tty
+// when you need guarenteed exclusive access to the tty
+tty_t* logging_lock();
+void logging_unlock(tty_t** tty);
+#define LOG_AQUIRE_SCOPED_LOCK() tty_t* __log_lock __attribute__((cleanup(logging_unlock))) = logging_lock();
+
 #define log_debug(...)     sys_logf(Severity_Debug   , __VA_ARGS__)
 #define log_info(...)      sys_logf(Severity_Info    , __VA_ARGS__)
 #define log_warn(...)      sys_logf(Severity_Warn    , __VA_ARGS__)

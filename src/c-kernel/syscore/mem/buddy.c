@@ -60,7 +60,7 @@ err_t pnode_repair_tree(ba_node_t* target) {
 err_t pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        kpanic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -87,7 +87,7 @@ err_t pnode_set_status(ba_node_t* target, u8 flag, bool bypass, bool fail_silent
 err_t pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        kpanic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -114,7 +114,7 @@ err_t pnode_set_mapping(ba_node_t* target, u8 flag, bool bypass, bool fail_silen
 err_t pnode_set_flags(ba_node_t* target, u8 flag, bool bypass, bool fail_silently) {
     if(!pnode_validate_flags_update(target, flag, bypass)) {
         if(fail_silently) return EINVAL;
-        panic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
+        kpanic(PANIC_BAD_MEMORY_REQUEST, "invalid flag update. target node: {p}, target flag: {x}, new flag: {x}\n", target, target->flags, flag);
         return EINVAL;
     }
 
@@ -431,7 +431,7 @@ void log_page_allocator_status() {
 
     log_info("[buddy-allocator](log_page_allocator_status) Current Page Pool:\n");
     while(ERR_CAST(curr_node) != ENOPAGE) {
-        panic_on_err_ptr(curr_node, "unexpected error");
+        kpanic_on_err_ptr(curr_node, "unexpected error");
         u32 size = (1 << curr_node->order) * X86_PAGE_SIZE;
 
         if(curr_flags == BA_FLAGS(curr_node->flags)) {
@@ -513,7 +513,7 @@ x86_mmu_map_t make_template_page_table() {
     
     ba_node_t* curr_node = ba_get_min_leaf(g_buddy_alloc.root);
     while(ERR_CAST(curr_node) != ENOPAGE) {
-        panic_on_err_ptr(curr_node, "unexpected error");
+        kpanic_on_err_ptr(curr_node, "unexpected error");
         
         if(BA_FLAGS(curr_node->flags) != (PNODE_ON_RAM | PNODE_USED)) {
             curr_node = ba_get_next_leaf(curr_node);
@@ -525,12 +525,12 @@ x86_mmu_map_t make_template_page_table() {
         // map the pages in the template page table to the physical address of the node
         usize req_pages = x86_map_pages_get_page_count(&ptable, paddress, size);
         if((page_idx + req_pages) > page_count) {
-            panic(PANIC_OBJ_POOL_FULL, "not enough pages in the template page table to map all used pages in the buddy allocator");
+            kpanic(PANIC_OBJ_POOL_FULL, "not enough pages in the template page table to map all used pages in the buddy allocator");
         }
         // identity map the pages in the template page table
         err_t err = x86_map_pages(&ptable, paddress, paddress, size, X86_PAGE_PRESENT | X86_PAGE_RW, &pages[page_idx], req_pages);
         if(err != ESUCCESS) {
-            panic(PANIC_UNEXPECTED_FAILURE, "failed to map pages in the template page table. error code: {x}", err);
+            kpanic(PANIC_UNEXPECTED_FAILURE, "failed to map pages in the template page table. error code: {x}", err);
         }
         page_idx += req_pages;
 
