@@ -3,6 +3,8 @@
 
 #include <arch/i686.h>
 
+#include <arch/IRQ/PIC.h>
+
 #define PCI_BAR_MAP_NONE   0
 #define PCI_BAR_MAP_MEMORY 1
 #define PCI_BAR_MAP_IO     2
@@ -166,6 +168,7 @@ void add_device(pci_device* _device)
     pci_device* new_device = (pci_device*)malloc(kmt_get_heap(), sizeof(pci_device));
     panic_on_err_ptr(new_device, "Failed to allocate memory for new PCI device");
     *new_device = *_device;
+    new_device->next = nullptr;
 
     if(g_pci_ctx.head == nullptr) {
         g_pci_ctx.head = new_device;
@@ -234,6 +237,7 @@ void pci_pretty_print() {
     // lock the tty for exclusive access
     // so that other threads don't interleave their output with this
     LOG_AQUIRE_SCOPED_LOCK();
+    //PIC_irq_mask(0);
     log_debug("PCI Devices:\n");
     log_debug("  BUS | Device | Class | Subclass | Prog IF | Vendor ID | Device ID\n");
 

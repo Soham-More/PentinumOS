@@ -42,10 +42,10 @@ typedef struct thread_rpc_desc_t {
 bool kmt_is_initialized();
 // put the current thread to sleep
 void kmt_sleep();
-// put the current thread to sleep until the specified wakeup time (in micro seconds since boot)
-void kmt_sleep_until(time_us_t wakeup_time_us);
-// sleep for the specified duration (in micro seconds)
-void kmt_sleep_for(time_us_t sleep_duration_us);
+// put the current thread to sleep until the specified wakeup time (in milliseconds since boot)
+void kmt_sleep_until(time_ms_t wakeup_time_us);
+// sleep for the specified duration (in milliseconds)
+void kmt_sleep_for(time_ms_t sleep_duration_us);
 // kill the current thread
 void kmt_kill_current_thread();
 

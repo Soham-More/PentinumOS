@@ -4,7 +4,9 @@
 #include <arch/IRQ/IRQ.h>
 #include <arch/IRQ/PIC.h>
 
-#define PIT_FREQUENCY_HZ 1193182
+//#define PIT_FREQUENCY_HZ 1193182
+#define PIT_FREQUENCY_HZ 1000
+#define PIT_BASE_CLOCK_HZ 1193182
 
 struct {
     u64 ticks_since_init;
@@ -29,12 +31,12 @@ void _timer_interrupt(registers_t* registers) {
 void initialize_timer() {
     x86_disable_interrupts();
 	
-	u16 divider = (PIT_FREQUENCY_HZ / 16500) & ~(0x1);
+	u16 divider = (u16)((u32)PIT_BASE_CLOCK_HZ / PIT_FREQUENCY_HZ) & ~(u16)(0x1);
 	
 	x86_outb(0x43, 0b00110110);
     x86_outb(0x40, (u8)divider);
     x86_outb(0x40, (u8)(divider >> 8));
-    g_timer_ctx.frequency_hz = PIT_FREQUENCY_HZ;
+    g_timer_ctx.frequency_hz = PIT_BASE_CLOCK_HZ / divider;
     g_timer_ctx.callback = nullptr;
     g_timer_ctx.callback_frequency_hz = 0;
 

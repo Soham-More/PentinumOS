@@ -26,7 +26,7 @@
 #define KMT_PREEMPTION_ENABLED  0x1
 
 #define KMT_TIME_SLICE_US 20
-#define KMT_AGE_TICKS 10
+#define KMT_AGE_TICKS 4
 
 typedef struct kmt_queue_node_t {
     thread_uid_t thread_id;
@@ -54,7 +54,7 @@ typedef struct kmt_rwlock_impl_t {
 
 typedef struct kmt_sleep_request_t {
     thread_uid_t thread_id;
-    time_ns_t wakeup_time;
+    time_ms_t wakeup_time;
 } kmt_sleep_request_t;
 
 bool kmt_is_initialized_value = false;
@@ -229,7 +229,7 @@ void kmt_preemptive_intr_handler(registers_t* registers) {
     if(!(g_kmt_ctx.flags & KMT_PREEMPTION_ENABLED)) return;
 
     // update all the threads which are sleeping
-    time_ns_t current_time = timer_time_since_init_ns();
+    time_ms_t current_time = div_floor(timer_time_since_init_ns(), 1000 * 1000);
     while(g_kmt_ctx.sleep_heap_size > 0 && g_kmt_ctx.sleep_heap[0].wakeup_time <= current_time) {
         thread_uid_t thread_id = g_kmt_ctx.sleep_heap[0].thread_id;
         kmt_pop_sleep_heap();
@@ -456,7 +456,7 @@ void kmt_sleep() {
     STOP_PREEMPTING();
     kmt_schedule(THREAD_STATUS_IDLE);
 }
-void kmt_sleep_until(time_us_t wakeup_time_us) {
+void kmt_sleep_until(time_ms_t wakeup_time_ms) {
     STOP_PREEMPTING();
 
     // add the current thread to the sleep min heap
@@ -466,11 +466,11 @@ void kmt_sleep_until(time_us_t wakeup_time_us) {
     }
 
     // the wakeup time is in the past, we don't need to sleep
-    if(timer_time_since_init_ns() >= wakeup_time_us * 1000) return;
+    if(timer_time_since_init_ns() >= TIME_MS_TO_NS(wakeup_time_ms)) return;
 
     usize idx = g_kmt_ctx.sleep_heap_size;
     g_kmt_ctx.sleep_heap[idx].thread_id = g_kmt_ctx.current_thread;
-    g_kmt_ctx.sleep_heap[idx].wakeup_time = wakeup_time_us * 1000;
+    g_kmt_ctx.sleep_heap[idx].wakeup_time = wakeup_time_ms;
     g_kmt_ctx.sleep_heap_size++;
 
     // balance the min heap
@@ -488,8 +488,8 @@ void kmt_sleep_until(time_us_t wakeup_time_us) {
 
     kmt_schedule(THREAD_STATUS_IDLE_SLEEP);
 }
-void kmt_sleep_for(time_us_t sleep_duration_us) {
-    time_us_t wakeup_time = div_ceil(timer_time_since_init_ns(), 1000) + sleep_duration_us;
+void kmt_sleep_for(time_ms_t sleep_duration_ms) {
+    time_ms_t wakeup_time = div_ceil(timer_time_since_init_ns(), 1000 * 1000) + sleep_duration_ms;
     kmt_sleep_until(wakeup_time);
 }
 void kmt_kill_current_thread() {
