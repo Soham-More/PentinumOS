@@ -33,8 +33,8 @@ make
 - [x] x86 Paging setup
 - [x] Buddy Page Allocator
 - [x] Multitasking (Basic)
-- [ ] kmemd(kernel memory deamon) thread
-- [ ] PCI Bus thread + device enumeration
+- [x] syscore thread (currently does memory mangement)
+- [x] PCI Bus thread + device enumeration
 - [ ] USB device driver thread (UHCI)
 - [ ] VFS (basic)
 - [ ] FAT32 (readonly, USB stick)
